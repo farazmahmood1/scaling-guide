@@ -65,6 +65,6 @@ src/
 ## Next steps
 
 The build plan for the whole platform, frontend steps included, lives in the backend repository
-(`farazmahmood1/jubilant-octo-tribble-b`) at `docs/BUILD_PLAN.md`; section 3.1 has the week-by-week
+(`farazmahmood1/jubilant-octo-tribble-b`) at `docs/BUILD-PLAN.md`; section 3.1 has the week-by-week
 order. Next for this app: React Router and TanStack Query, then the orders, shipments, returns and
 confirmation pages for Release 1.
