@@ -64,7 +64,7 @@ src/
 
 ## Next steps
 
-1. Routing (React Router) once there is more than one page.
-2. TanStack Query for caching, background refresh and staleness indicators.
-3. Recharts for the returns-by-city and profit charts, using the chart tokens already in the theme.
-4. Real pages: orders, returns, inventory, profit and loss.
+The build plan for the whole platform, frontend steps included, lives in the backend repository
+(`farazmahmood1/jubilant-octo-tribble-b`) at `docs/BUILD_PLAN.md`; section 3.1 has the week-by-week
+order. Next for this app: React Router and TanStack Query, then the orders, shipments, returns and
+confirmation pages for Release 1.
