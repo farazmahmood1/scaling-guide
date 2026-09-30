@@ -66,4 +66,4 @@ src/
 
 The build plan for the whole platform, frontend steps included, lives in the backend repository
 (`farazmahmood1/jubilant-octo-tribble-b`) at `docs/BUILD_PLAN.md`. Next for this app: React Router
-and TanStack Query (step B9), then the orders and shipments pages.
+and TanStack Query (step ORD-5), then the orders and shipments pages (ORD-5, SHP-8).
