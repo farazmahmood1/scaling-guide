@@ -18,7 +18,9 @@ Start the backend too (`cd ../backend && npm run dev`). Vite proxies `/api` to
 | `npm run dev` | Dev server with hot reload |
 | `npm run build` | Type check and build to `dist/` |
 | `npm run preview` | Serve the built files |
-| `npm run lint` | ESLint |
+| `npm run lint` | oxlint |
+| `npm run typecheck` | TypeScript across the app and Vite config, no emit |
+| `npm test` / `npm run test:watch` | Vitest over `src/**/*.test.ts(x)`, once or on change |
 
 ## Configuration
 
