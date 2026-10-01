@@ -52,6 +52,9 @@ export const apiGet = <T>(path: string, signal?: AbortSignal): Promise<T> => req
 export const apiPost = <T>(path: string, data: unknown): Promise<T> =>
   request<T>(path, { method: 'POST', body: JSON.stringify(data) });
 
+export const apiPut = <T>(path: string, data: unknown): Promise<T> =>
+  request<T>(path, { method: 'PUT', body: JSON.stringify(data) });
+
 export interface SessionUser {
   email: string;
   name: string;
@@ -94,4 +97,169 @@ export interface IntegrationStatus {
     writesEnabled: boolean;
     accounts: Array<{ key: string; label: string; ready: boolean }>;
   };
+}
+
+export type StoreKey = 'nur' | 'organics';
+export type ItemStatus = 'open' | 'resolved' | 'ignored';
+
+/** One row of the reconciliation queue. `detail` is written by the backend jobs and holds no PII. */
+export interface ReviewItem {
+  id: string;
+  kind: string;
+  severity: 'info' | 'warning' | 'error';
+  status: ItemStatus;
+  storeKey: StoreKey | null;
+  orderId: string | null;
+  orderNumber: string | null;
+  shipmentId: string | null;
+  trackingNumber: string | null;
+  detail: Record<string, unknown>;
+  note: string | null;
+  resolvedBy: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface ReviewItemPage {
+  items: ReviewItem[];
+  nextBefore: string | null;
+}
+
+export interface PrefixCount {
+  prefix: string | null;
+  parcels: number;
+  matched: number;
+  configured: boolean;
+}
+
+export interface AccountMatchReport {
+  account: string;
+  storeKey: StoreKey | null;
+  parcels: number;
+  matched: number;
+  unmatched: number;
+  unmatchedRate: number;
+  unmatchedWithoutItem: number;
+  byMethod: Record<string, number>;
+  unparsedRefs: number;
+  prefixes: PrefixCount[];
+  withinTarget: boolean;
+}
+
+export interface ReconciliationSummary {
+  open: Record<string, number>;
+  matching: AccountMatchReport[];
+}
+
+export interface OrderCandidate {
+  id: string;
+  orderNumber: string;
+  /** Integer paisa as a decimal string: money never travels as a float. */
+  totalPaisa: string;
+  city: string | null;
+  placedAt: string;
+}
+
+export interface MatchingSetting {
+  refPrefixes: Record<StoreKey, string[]>;
+  windowDays: number;
+}
+
+export interface AwaitingReturn {
+  shipmentId: string;
+  trackingNumber: string;
+  account: string;
+  orderId: string | null;
+  returnedAt: string | null;
+}
+
+export interface StockLocation {
+  id: string;
+  key: string | null;
+  kind: string;
+  label: string;
+}
+
+export interface Quant {
+  variant_id: string;
+  store: StoreKey;
+  sku: string | null;
+  product: string;
+  variant: string;
+  location_id: string;
+  location: string;
+  location_kind: string;
+  qty: number;
+}
+
+export interface VariantHit {
+  id: string;
+  store: StoreKey;
+  sku: string | null;
+  product: string;
+  variant: string;
+}
+
+/** Amounts are integer paisa in decimal strings. */
+export interface TrialBalance {
+  rows: Array<{ code: string; name: string; type: string; debit: string; credit: string; balance: string }>;
+  debit: string;
+  credit: string;
+  balanced: boolean;
+}
+
+export interface LedgerLine {
+  entryId: string;
+  date: string;
+  memo: string;
+  sourceType: string;
+  sourceId: string;
+  storeId: string | null;
+  debit: string;
+  credit: string;
+  reversed: boolean;
+}
+
+export interface Period {
+  year: number;
+  month: number;
+  status: 'open' | 'closed';
+  closedAt: string | null;
+  closedBy: string | null;
+  entries: number;
+  closableFrom: string;
+}
+
+export interface InventoryCheck {
+  asAt: string;
+  stockValue: string;
+  ledgerValue: string;
+  difference: string;
+  agrees: boolean;
+  variants: number;
+  units: number;
+  missingCost: Array<{ variantId: string; sku: string | null; title: string; units: number }>;
+  negative: Array<{ variantId: string; sku: string | null; title: string; units: number }>;
+}
+
+export interface OpeningBalances {
+  entriesBeforeOpening: { count: number; earliest: string | null };
+  accounts: Array<{ key: string; code: string }>;
+  opening: { date: string; lines: Array<{ code: string; balancePaisa: string; store: StoreKey | null }> } | null;
+}
+
+/** Shopify's stock for one variant beside our warehouse (units, not money). */
+export interface StockComparisonRow {
+  variantId: string;
+  store: StoreKey;
+  sku: string | null;
+  title: string;
+  onHand: number;
+  available: number;
+  committed: number;
+  committedUnbooked: number;
+  estimate: number;
+  warehouse: number;
+  difference: number;
+  readAt: string;
 }

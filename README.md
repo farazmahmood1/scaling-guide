@@ -18,7 +18,9 @@ Start the backend too (`cd ../backend && npm run dev`). Vite proxies `/api` to
 | `npm run dev` | Dev server with hot reload |
 | `npm run build` | Type check and build to `dist/` |
 | `npm run preview` | Serve the built files |
-| `npm run lint` | ESLint |
+| `npm run lint` | oxlint |
+| `npm run typecheck` | TypeScript across the app and Vite config, no emit |
+| `npm test` / `npm run test:watch` | Vitest over `src/**/*.test.ts(x)`, once or on change |
 
 ## Configuration
 
@@ -27,6 +29,19 @@ Only needed when the backend is somewhere other than `localhost:4000`:
 ```bash
 cp .env.example .env.local   # then set VITE_API_URL
 ```
+
+## Deployment (Vercel)
+
+The dashboard is deployed at `https://scaling-guide-flame.vercel.app`. `VITE_API_URL` is read at
+build time, so set it in the Vercel project settings to the backend's public URL, and add the
+Vercel origin to the backend's `CORS_ORIGIN`.
+
+Until the backend is public (it runs on localhost until the Render keys arrive), the deployed site
+cannot sign in: with no `VITE_API_URL`, its `/api` calls go to Vercel itself and get 404. Work
+locally with `npm run dev` against the local backend instead.
+
+Once React Router adds more than one page, Vercel also needs a rewrite of all paths to
+`index.html` (a `vercel.json`), or a refresh on any page other than `/` returns 404.
 
 ## Adding shadcn components
 
@@ -41,7 +56,7 @@ table, badge, input, separator, skeleton, tabs, dropdown-menu, sonner.
 
 ```
 src/
-  App.tsx                     Overview page
+  App.tsx                     sign-in gate and page switch
   main.tsx                    entry point, toaster
   index.css                   Tailwind + shadcn theme + brand colours
   components/
@@ -50,7 +65,18 @@ src/
     ui/                       shadcn components
   hooks/use-api.ts            small fetch hook
   lib/api.ts                  API client and shared types
+  lib/format.ts               paisa → rupees (exact, no floats), queue item wording
+  lib/route.ts                hash routes (#/returns): no router dependency, no Vercel rewrite
+  pages/overview.tsx          headline tiles and connections
+  pages/reconciliation.tsx    review queue: resolve, ignore, link a parcel to its order;
+                              match rate and the order-number prefixes setting
+  pages/returns.tsx           returns PostEx sent back that nobody has checked in; check-in
+  pages/inventory.tsx         stock per product and location; counts and corrections
+  pages/accounting.tsx        trial balance with each account's entries, month close,
+                              opening balances (typed rupees parsed exactly to paisa)
 ```
+
+Every action on these pages is recorded by the backend in its audit log with the signed-in user.
 
 ## Notes
 
@@ -65,6 +91,6 @@ src/
 ## Next steps
 
 The build plan for the whole platform, frontend steps included, lives in the backend repository
-(`farazmahmood1/jubilant-octo-tribble-b`) at `docs/BUILD_PLAN.md`; section 3.1 has the week-by-week
-order. Next for this app: React Router and TanStack Query, then the orders, shipments, returns and
-confirmation pages for Release 1.
+(`farazmahmood1/jubilant-octo-tribble-b`) at `docs/BUILD-PLAN.md`; section 3.1 has the week-by-week
+order. Next for this app: React Router and TanStack Query (they replace the hash routes and
+`useApi` once caching matters), then the orders, shipments and confirmation pages for Release 1.
