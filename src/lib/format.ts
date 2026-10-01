@@ -174,3 +174,8 @@ export const fromNow = (iso: string, now: number = Date.now()): string => {
   if (abs === 0) return 'now';
   return minutes > 0 ? `in ${span}` : `${span} ago`;
 };
+
+const fullTime = new Intl.DateTimeFormat('en-GB', { timeZone: KARACHI, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+/** `1 Oct 2026, 14:05 PKT`: for a timeline, where the year and the zone both matter. */
+export const formatKarachiFull = (iso: string | null): string => (iso ? `${fullTime.format(new Date(iso))} PKT` : '—');

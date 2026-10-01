@@ -34,6 +34,12 @@ describe('list query in the URL', () => {
     expect(parseQuery(new URLSearchParams('from=2026-09-30&to=2026-09-01'), spec)).toMatchObject({ from: '2026-09-01', to: '2026-09-30' });
   });
 
+  it('an open filter (values from the data) keeps any short value', () => {
+    const open = { ...spec, multi: { ...spec.multi, city: null } };
+    expect(parseQuery(new URLSearchParams('city=Lahore,D.I. Khan'), open).multi).toEqual({ city: ['Lahore', 'D.I. Khan'] });
+    expect(parseQuery(new URLSearchParams(`city=${'x'.repeat(61)}`), open).multi).toEqual({});
+  });
+
   it('a filter change goes back to page 1; paging and hiding a column do not', () => {
     const on3 = { ...defaultQuery(spec), page: 3 };
     expect(applyChange(on3, { search: 'x' }).page).toBe(1);

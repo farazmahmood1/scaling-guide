@@ -21,8 +21,11 @@ export interface ListQuery {
 }
 
 export interface QuerySpec {
-  /** Multi-select filter keys and the values each accepts. */
-  multi: Record<string, readonly string[]>;
+  /**
+   * Multi-select filter keys and the values each accepts; `null` for one whose values come from
+   * the data (cities), which takes any short value.
+   */
+  multi: Record<string, readonly string[] | null>;
   sortKeys: readonly string[];
   defaultSort: { key: string; dir: SortDir } | null;
   pageSizes: readonly number[];
@@ -62,7 +65,7 @@ export const parseQuery = (params: URLSearchParams, spec: QuerySpec): ListQuery 
   query.from = from;
   query.to = to;
   for (const [key, allowed] of Object.entries(spec.multi)) {
-    const values = list(params.get(key)).filter((v) => allowed.includes(v));
+    const values = list(params.get(key)).filter((v) => (allowed ? allowed.includes(v) : v.length <= 60));
     if (values.length > 0) query.multi[key] = values;
   }
   const page = Number(params.get('page'));

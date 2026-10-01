@@ -414,3 +414,59 @@ export interface BreakdownRow {
   profit: string;
   parcels: number;
 }
+
+// ---- Parcels ----
+
+export interface ParcelRow {
+  id: string;
+  trackingNumber: string;
+  account: string;
+  store: StoreKey | null;
+  stage: 'booked' | 'in_transit' | 'attempted' | 'delivered' | 'returning' | 'returned' | 'cancelled';
+  statusCode: string | null;
+  statusMessage: string | null;
+  city: string | null;
+  codPaisa: string | null;
+  bookedAt: string | null;
+  statusUpdatedAt: string | null;
+  daysInTransit: number | null;
+  attempts: number;
+  lastFailureReason: string | null;
+  orderId: string | null;
+  orderNumber: string | null;
+  orderRef: string | null;
+  pr: boolean;
+  checkedIn: 'restocked' | 'damaged' | null;
+}
+
+export interface ParcelPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  rows: ParcelRow[];
+}
+
+export interface ParcelDetail extends ParcelRow {
+  statusLabel: string | null;
+  customerPhone: string | null;
+  deliveredAt: string | null;
+  lastSyncedAt: string | null;
+  matchMethod: string | null;
+  events: Array<{ code: string; message: string; occurredAt: string | null }>;
+  charges: Array<{ kind: string; amountPaisa: string }>;
+  payouts: Array<{ cprNumber: string; paidAt: string | null; amountPaisa: string }>;
+  checkIn: { outcome: 'restocked' | 'damaged'; at: string; by: string; note: string | null } | null;
+  order: {
+    id: string;
+    number: string;
+    store: StoreKey;
+    placedAt: string;
+    totalPaisa: string;
+    state: string | null;
+    financialStatus: string | null;
+    customerName: string | null;
+    city: string | null;
+    lines: Array<{ title: string; sku: string | null; qty: number; totalPaisa: string }>;
+  } | null;
+  openItems: Array<{ id: string; kind: string; severity: string; detail: Record<string, unknown> }>;
+}
