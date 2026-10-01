@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useApi } from '@/hooks/use-api';
-import { type Quant, type StockLocation, type VariantHit, apiGet, apiPost } from '@/lib/api';
+import { type Quant, type StockComparisonRow, type StockLocation, type VariantHit, apiGet, apiPost } from '@/lib/api';
 
 const REASONS = [
   { value: 'opening_stock', label: 'Opening stock' },
@@ -164,6 +164,122 @@ function AdjustmentForm({ locations, onDone }: { locations: StockLocation[]; onD
   );
 }
 
+/**
+ * Shopify's stock beside ours. Shopify's "on hand" still counts parcels that left, because orders
+ * are not marked fulfilled there, so the shelf is estimated as available + committed to orders
+ * not booked with PostEx yet. The opening count can be taken from that estimate once per store.
+ */
+function ShopifyStockCard({ onDone }: { onDone: () => void }) {
+  const [store, setStore] = useState<'nur' | 'organics'>('nur');
+  const [asAt, setAsAt] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const { data, error, loading, reload } = useApi<{ rows: StockComparisonRow[] }>(`/api/v1/stock/shopify-comparison?store=${store}`);
+  const rows = data?.rows ?? [];
+  const differing = rows.filter((r) => r.difference !== 0);
+
+  const take = async () => {
+    setSaving(true);
+    try {
+      const result = await apiPost<{ lines: number; units: number }>('/api/v1/stock/opening-from-shopify', { asAt, store });
+      toast.success(result.lines ? `Opening count recorded: ${result.lines} products, ${result.units} units` : 'Nothing to record: our stock already matches');
+      setConfirming(false);
+      reload();
+      onDone();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : 'Could not record the opening count');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="lg:col-span-3">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle>Shopify stock</CardTitle>
+            <CardDescription>
+              Shopify's on hand still includes parcels already sent with PostEx (they stay "committed" because orders are not marked fulfilled). The shelf is
+              estimated as available + committed to orders not booked yet.
+            </CardDescription>
+          </div>
+          <select className={selectClass} value={store} onChange={(e) => setStore(e.target.value as 'nur' | 'organics')} aria-label="Store">
+            <option value="nur">NUR by Juggun</option>
+            <option value="organics">Juggun's Organics</option>
+          </select>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading && !data && <Skeleton className="h-24 w-full" />}
+        {error && <p className="text-sm text-brand-coral">Could not load Shopify's stock: {error}</p>}
+        {data && rows.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No stock read from Shopify yet: it arrives with the hourly catalogue sync.</p>}
+        {rows.length > 0 && (
+          <div className="max-h-96 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-right">On hand</TableHead>
+                  <TableHead className="text-right">Committed</TableHead>
+                  <TableHead className="text-right">…not booked</TableHead>
+                  <TableHead className="text-right">Available</TableHead>
+                  <TableHead className="text-right">Shelf estimate</TableHead>
+                  <TableHead className="text-right">Our warehouse</TableHead>
+                  <TableHead className="text-right">Difference</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.variantId}>
+                    <TableCell>
+                      {r.title} <span className="font-mono text-xs text-muted-foreground">{r.sku ?? 'no SKU'}</span>
+                    </TableCell>
+                    <TableCell className="text-right">{r.onHand}</TableCell>
+                    <TableCell className="text-right">{r.committed}</TableCell>
+                    <TableCell className="text-right">{r.committedUnbooked}</TableCell>
+                    <TableCell className="text-right">{r.available}</TableCell>
+                    <TableCell className="text-right font-medium">{r.estimate}</TableCell>
+                    <TableCell className="text-right">{r.warehouse}</TableCell>
+                    <TableCell className={r.difference === 0 ? 'text-right text-muted-foreground' : 'text-right font-medium text-brand-coral'}>
+                      {r.difference > 0 ? `+${r.difference}` : r.difference}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        {differing.length > 0 && (
+          <div className="flex flex-wrap items-end gap-2 border-t pt-3">
+            <label className="text-xs">
+              Opening count as at (the cut-over date)
+              <Input type="date" className="mt-1 w-44" value={asAt} onChange={(e) => setAsAt(e.target.value)} />
+            </label>
+            {confirming ? (
+              <>
+                <Button size="sm" variant="destructive" disabled={saving} onClick={take}>
+                  Record {differing.length} products as the opening count
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" variant="outline" disabled={!asAt} onClick={() => setConfirming(true)}>
+                Use the shelf estimate as the opening count
+              </Button>
+            )}
+            <p className="w-full text-xs text-muted-foreground">
+              Sets our warehouse today to the estimate, dated at the cut-over day. Once per store; after that, enter differences as stock counts.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /** Current stock per product and location, straight from the ledger's quants. */
 export function InventoryPage() {
   const [location, setLocation] = useState('warehouse');
@@ -240,6 +356,7 @@ export function InventoryPage() {
         </Card>
 
         <AdjustmentForm locations={locations.data?.locations ?? []} onDone={quants.reload} />
+        <ShopifyStockCard onDone={quants.reload} />
       </div>
     </>
   );

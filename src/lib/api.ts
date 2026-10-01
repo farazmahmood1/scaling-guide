@@ -247,3 +247,19 @@ export interface OpeningBalances {
   accounts: Array<{ key: string; code: string }>;
   opening: { date: string; lines: Array<{ code: string; balancePaisa: string; store: StoreKey | null }> } | null;
 }
+
+/** Shopify's stock for one variant beside our warehouse (units, not money). */
+export interface StockComparisonRow {
+  variantId: string;
+  store: StoreKey;
+  sku: string | null;
+  title: string;
+  onHand: number;
+  available: number;
+  committed: number;
+  committedUnbooked: number;
+  estimate: number;
+  warehouse: number;
+  difference: number;
+  readAt: string;
+}
