@@ -62,6 +62,13 @@ export const moduleForPath = (pathname: string): Module | undefined => {
   return MODULES.find((m) => m.path !== '/' && (pathname === m.path || pathname.startsWith(`${m.path}/`)));
 };
 
+/** Routes outside the navigation: their tab titles. */
+export const EXTRA_TITLES: Record<string, string> = { '/dev/table': 'Table demo' };
+
+/** The tab title for a path: its module, a known extra route, or "Not found". */
+export const titleForPath = (pathname: string): string =>
+  moduleForPath(pathname)?.label ?? EXTRA_TITLES[pathname.replace(/\/$/, '')] ?? 'Not found';
+
 /** `#/returns` from before the router: the path it now lives at, so old bookmarks still work. */
 export const legacyHashPath = (hash: string): string | null => {
   const name = hash.replace(/^#\/?/, '').split(/[/?]/)[0] ?? '';

@@ -59,6 +59,26 @@ enforces access on every request regardless.
 - A sidebar on wide screens, a drawer behind the menu button below 1024px; checked at 375px with
   no horizontal scroll. The tab title follows the route; unknown paths get a 404 page.
 
+## Lists: DataTable and FilterBar
+
+Every list screen uses `components/data-table.tsx` and `components/filter-bar.tsx`, with its
+state in the URL through `hooks/use-list-query.ts` (`lib/list-query.ts` reads and writes it):
+search `q`, `from`/`to` (Karachi days), one parameter per multi-select (`status=pending,confirmed`),
+`page`, `size`, `sort=key:dir` and hidden columns `hide`. A filtered view is a link anyone can open
+and survives a reload; Back undoes a filter. Defaults are left out, and anything a URL says that
+the screen does not understand falls back to the default.
+
+- **DataTable** renders one page from the server (paging, sorting and filtering happen there), so
+  a large list costs what one page does. Loading, empty, error (with Try again) and populated
+  states; sortable headers with `aria-sort`; a column menu; rows that open by click, Enter or Space,
+  with ↑/↓/Home/End between them; CSV export of the current view (every matching row, visible
+  columns, formulas defused, UTF-8 for Excel).
+- **FilterBar**: search (applied when typing pauses), a date range with presets, and
+  multi-selects, all keyboard-operable, with Clear all.
+
+`/dev/table` (not in the menu) is the demo over 10,000 made-up orders; `?sim=slow|error|empty`
+forces each state.
+
 ## Adding shadcn components
 
 ```bash
@@ -83,6 +103,13 @@ src/
     integration-status.tsx    live connection status from the backend
     ui/                       shadcn components
   hooks/use-api.ts            small fetch hook
+  hooks/use-list-query.ts     a list's filters, sort and page, in the URL
+  components/data-table.tsx   the list table every screen uses
+  components/filter-bar.tsx   search, date range and multi-select filters
+  lib/list-query.ts           list state ⇄ URL parameters
+  lib/csv.ts                  CSV export
+  lib/mock-orders.ts          10,000 made-up orders for the table demo
+  pages/dev/table-demo.tsx    the table demo (/dev/table)
   lib/api.ts                  API client and shared types
   lib/format.ts               paisa → rupees (exact, no floats), queue item wording, Karachi
                               time for the desk (offsets from the time zone database)

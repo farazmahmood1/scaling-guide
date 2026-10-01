@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MODULES, canUse, legacyHashPath, moduleByKey, moduleForPath, visibleModules } from '@/lib/nav';
+import { MODULES, canUse, legacyHashPath, moduleByKey, moduleForPath, titleForPath, visibleModules } from '@/lib/nav';
 
 describe('modules and roles', () => {
   it('has the thirteen modules, each at its own path', () => {
@@ -23,6 +23,7 @@ describe('modules and roles', () => {
     expect(moduleForPath('/purchase/orders/12')?.key).toBe('purchase');
     expect(moduleForPath('/prx')).toBeUndefined();
     expect(moduleForPath('/nope')).toBeUndefined();
+    expect([titleForPath('/purchase'), titleForPath('/dev/table'), titleForPath('/nope')]).toEqual(['Purchase', 'Table demo', 'Not found']);
   });
 
   it('sends old hash links to their paths', () => {

@@ -57,6 +57,8 @@ export const routes: RouteObject[] = [
           },
         }),
       ),
+      // Component demos, outside the navigation.
+      { path: 'dev/table', errorElement: <RouteError />, lazy: async () => ({ element: await import('@/pages/dev/table-demo').then(({ TableDemoPage }) => <TableDemoPage />) }) },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

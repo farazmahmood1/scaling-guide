@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigation } from 'react-router';
 
 import { useAuth } from '@/auth/auth-context';
 import { Button } from '@/components/ui/button';
-import { type Module, moduleForPath, visibleModules } from '@/lib/nav';
+import { type Module, moduleForPath, titleForPath, visibleModules } from '@/lib/nav';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   isActive
@@ -87,8 +87,8 @@ export function AppShell() {
   const loading = useNavigation().state === 'loading';
 
   useEffect(() => {
-    document.title = current ? `${current.label} · NUR Organics` : 'Not found · NUR Organics';
-  }, [current]);
+    document.title = `${titleForPath(pathname)} · NUR Organics`;
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-background lg:flex">
@@ -107,7 +107,7 @@ export function AppShell() {
           <div className="lg:hidden">
             <Brand />
           </div>
-          <span className="hidden text-sm font-medium lg:inline">{current?.label ?? ''}</span>
+          <span className="hidden text-sm font-medium lg:inline">{current ? current.label : titleForPath(pathname)}</span>
           <div className="ml-auto flex min-w-0 items-center gap-3">
             <span className="hidden truncate text-xs opacity-60 sm:inline">{user?.email}</span>
             <Button variant="ghost" size="sm" onClick={signOut} className="text-white/80 hover:bg-white/10 hover:text-white lg:text-muted-foreground lg:hover:bg-muted lg:hover:text-foreground">
