@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /** The pages that exist. The rest of the nav stays a label until its page is built. */
-export const PAGES = ['overview', 'reconciliation', 'returns', 'inventory'] as const;
+export const PAGES = ['overview', 'reconciliation', 'returns', 'inventory', 'accounting'] as const;
 export type Page = (typeof PAGES)[number];
 
 /**

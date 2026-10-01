@@ -10,6 +10,7 @@ const NAV: ReadonlyArray<{ label: string; page?: Page }> = [
   { label: 'Reconciliation', page: 'reconciliation' },
   { label: 'Returns', page: 'returns' },
   { label: 'Inventory', page: 'inventory' },
+  { label: 'Accounting', page: 'accounting' },
   { label: 'Orders' },
   { label: 'Profit' },
 ];

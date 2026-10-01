@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ReviewItem } from '@/lib/api';
-import { describeItem, formatPaisa, kindLabel, parsePrefixes, percent } from '@/lib/format';
+import { describeItem, formatPaisa, kindLabel, paisaToInput, parsePrefixes, parseRupees, percent } from '@/lib/format';
 
 const item = (kind: string, detail: Record<string, unknown>): ReviewItem => ({
   id: '1',
@@ -71,5 +71,26 @@ describe('parsePrefixes', () => {
 describe('percent', () => {
   it('shows one decimal', () => {
     expect(percent(0.046)).toBe('4.6%');
+  });
+});
+
+describe('parseRupees', () => {
+  it('reads typed rupees as exact paisa', () => {
+    expect(parseRupees('1,234.5')).toBe('123450');
+    expect(parseRupees('Rs 12,000.00')).toBe('1200000');
+    expect(parseRupees('-300')).toBe('-30000');
+    expect(parseRupees('0.07')).toBe('7');
+    expect(parseRupees('9007199254740993.12')).toBe('900719925474099312');
+    expect(parseRupees('-0')).toBe('0');
+  });
+
+  it('refuses more than two decimals, letters and blanks', () => {
+    expect(parseRupees('1.234')).toBeNull();
+    expect(parseRupees('12abc')).toBeNull();
+    expect(parseRupees('')).toBeNull();
+  });
+
+  it('round-trips with paisaToInput', () => {
+    for (const paisa of ['0', '5', '150000', '-30000', '900719925474099312']) expect(parseRupees(paisaToInput(paisa))).toBe(paisa);
   });
 });

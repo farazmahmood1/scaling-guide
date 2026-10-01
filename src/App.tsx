@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/auth/auth-context';
 import { AppShell } from '@/components/app-shell';
 import { useRoute } from '@/lib/route';
+import { AccountingPage } from '@/pages/accounting';
 import { InventoryPage } from '@/pages/inventory';
 import { LoginPage } from '@/pages/login';
 import { OverviewPage } from '@/pages/overview';
@@ -30,6 +31,7 @@ function Routes() {
       {page === 'reconciliation' && <ReconciliationPage />}
       {page === 'returns' && <ReturnsPage />}
       {page === 'inventory' && <InventoryPage />}
+      {page === 'accounting' && <AccountingPage />}
     </AppShell>
   );
 }

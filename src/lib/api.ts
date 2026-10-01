@@ -199,3 +199,38 @@ export interface VariantHit {
   product: string;
   variant: string;
 }
+
+/** Amounts are integer paisa in decimal strings. */
+export interface TrialBalance {
+  rows: Array<{ code: string; name: string; type: string; debit: string; credit: string; balance: string }>;
+  debit: string;
+  credit: string;
+  balanced: boolean;
+}
+
+export interface LedgerLine {
+  entryId: string;
+  date: string;
+  memo: string;
+  sourceType: string;
+  sourceId: string;
+  storeId: string | null;
+  debit: string;
+  credit: string;
+  reversed: boolean;
+}
+
+export interface Period {
+  year: number;
+  month: number;
+  status: 'open' | 'closed';
+  closedAt: string | null;
+  closedBy: string | null;
+  entries: number;
+  closableFrom: string;
+}
+
+export interface OpeningBalances {
+  accounts: Array<{ key: string; code: string }>;
+  opening: { date: string; lines: Array<{ code: string; balancePaisa: string; store: StoreKey | null }> } | null;
+}

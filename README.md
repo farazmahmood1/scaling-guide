@@ -72,6 +72,8 @@ src/
                               match rate and the order-number prefixes setting
   pages/returns.tsx           returns PostEx sent back that nobody has checked in; check-in
   pages/inventory.tsx         stock per product and location; counts and corrections
+  pages/accounting.tsx        trial balance with each account's entries, month close,
+                              opening balances (typed rupees parsed exactly to paisa)
 ```
 
 Every action on these pages is recorded by the backend in its audit log with the signed-in user.

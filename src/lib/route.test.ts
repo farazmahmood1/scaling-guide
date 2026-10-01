@@ -15,6 +15,6 @@ describe('parseRoute', () => {
   });
 
   it('round-trips with hrefFor', () => {
-    for (const page of ['overview', 'reconciliation', 'returns', 'inventory'] as const) expect(parseRoute(hrefFor(page))).toBe(page);
+    for (const page of ['overview', 'reconciliation', 'returns', 'inventory', 'accounting'] as const) expect(parseRoute(hrefFor(page))).toBe(page);
   });
 });

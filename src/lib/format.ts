@@ -78,3 +78,23 @@ export const parsePrefixes = (input: string): string[] | null => {
 };
 
 export const percent = (ratio: number): string => `${(ratio * 100).toFixed(1)}%`;
+
+/**
+ * What a person types as rupees (`1,234.5`, `-300`, `Rs 12,000.00`) as integer paisa in a
+ * decimal string, read digit by digit: no float ever holds the amount. Null if it is not an
+ * amount with at most two decimals. Blank is null too.
+ */
+export const parseRupees = (input: string): string | null => {
+  const cleaned = input.trim().replace(/^(rs\.?|pkr)\s*/i, '').replaceAll(',', '').replaceAll(' ', '');
+  const match = /^(-|−)?(\d+)(?:\.(\d{1,2}))?$/.exec(cleaned);
+  if (!match) return null;
+  const paisa = `${match[2]}${(match[3] ?? '').padEnd(2, '0')}`.replace(/^0+(?=\d)/, '');
+  return match[1] && paisa !== '0' ? `-${paisa}` : paisa;
+};
+
+/** Paisa string as a plain rupee amount for an input box: `150000` → `1500.00`, `-5` → `-0.05`. */
+export const paisaToInput = (paisa: string): string => {
+  const negative = paisa.startsWith('-');
+  const digits = (negative ? paisa.slice(1) : paisa).padStart(3, '0');
+  return `${negative ? '-' : ''}${digits.slice(0, -2).replace(/^0+(?=\d)/, '')}.${digits.slice(-2)}`;
+};
