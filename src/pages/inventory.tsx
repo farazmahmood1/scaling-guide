@@ -36,6 +36,7 @@ function AdjustmentForm({ locations, onDone }: { locations: StockLocation[]; onD
   const locationId = chosenLocation || holding[0]?.id || '';
   const [reason, setReason] = useState<(typeof REASONS)[number]['value']>('count');
   const [note, setNote] = useState('');
+  const [asAt, setAsAt] = useState('');
   const [search, setSearch] = useState('');
   const [hits, setHits] = useState<VariantHit[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
@@ -68,6 +69,7 @@ function AdjustmentForm({ locations, onDone }: { locations: StockLocation[]; onD
         locationId,
         reason,
         ...(note.trim() ? { note: note.trim() } : {}),
+        ...(reason === 'opening_stock' && asAt ? { asAt } : {}),
         lines: lines.map((l, i) => ({ variantId: l.variant.id, delta: deltas[i] })),
       });
       toast.success('Adjustment recorded');
@@ -104,6 +106,12 @@ function AdjustmentForm({ locations, onDone }: { locations: StockLocation[]; onD
             ))}
           </select>
         </div>
+        {reason === 'opening_stock' && (
+          <label className="block text-xs">
+            Counted as at (the opening balances date)
+            <Input type="date" className="mt-1 w-44" value={asAt} onChange={(e) => setAsAt(e.target.value)} />
+          </label>
+        )}
         <div className="relative">
           <Input placeholder="Find a product by SKU or name" value={search} onChange={(e) => setSearch(e.target.value)} />
           {visibleHits.length > 0 && (

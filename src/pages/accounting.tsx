@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useApi } from '@/hooks/use-api';
-import { type LedgerLine, type OpeningBalances, type Period, type StoreKey, type TrialBalance, apiPost, apiPut } from '@/lib/api';
+import { type InventoryCheck, type LedgerLine, type OpeningBalances, type Period, type StoreKey, type TrialBalance, apiPost, apiPut } from '@/lib/api';
 import { formatPaisa, paisaToInput, parseRupees } from '@/lib/format';
 
 const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
@@ -264,6 +264,13 @@ function OpeningBalancesCard() {
       </CardHeader>
       <CardContent className="space-y-2">
         {error && <p className="text-sm text-brand-coral">{error}</p>}
+        {data && data.entriesBeforeOpening.count > 0 && (
+          <p className="rounded-lg border border-brand-coral/40 bg-brand-coral/5 p-2 text-xs text-brand-coral">
+            {data.entriesBeforeOpening.count} entries are dated on or before the opening date (from {data.entriesBeforeOpening.earliest}). The client's balances
+            already include that history, so it would be counted twice. Date the opening balances before {data.entriesBeforeOpening.earliest}, or take the
+            balances from the client's books as at that day.
+          </p>
+        )}
         <label className="block text-xs">
           As at
           <Input type="date" className="mt-1 w-44" value={day} onChange={(e) => setDate(e.target.value)} />
@@ -306,6 +313,66 @@ function OpeningBalancesCard() {
   );
 }
 
+/**
+ * Do the books and the stock count agree? Inventory account vs units × cost, both as at the end of
+ * one day. On the cut-over date it checks the opening balance against the opening stock count.
+ */
+function InventoryCheckCard() {
+  const [asAt, setAsAt] = useState('');
+  const { data, error, loading } = useApi<InventoryCheck>(`/api/v1/accounting/inventory-check${asAt ? `?asAt=${asAt}` : ''}`);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Inventory check</CardTitle>
+        <CardDescription>The Inventory account against the stock count × cost. Pick the opening date to check the opening figures.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <Input type="date" className="w-44" value={asAt} onChange={(e) => setAsAt(e.target.value)} aria-label="As at" />
+        {loading && !data && <Skeleton className="h-16 w-full" />}
+        {error && <p className="text-brand-coral">{error}</p>}
+        {data && (
+          <>
+            <div className="space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  Stock: {data.units} units of {data.variants} products × cost
+                </span>
+                <span>{formatPaisa(data.stockValue)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Inventory account (1300)</span>
+                <span>{formatPaisa(data.ledgerValue)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-1 font-medium">
+                <span>
+                  Difference <Badge variant={data.agrees ? 'secondary' : 'destructive'}>{data.agrees ? 'Agrees' : 'Does not agree'}</Badge>
+                </span>
+                <span>{formatPaisa(data.difference)}</span>
+              </div>
+            </div>
+            {data.missingCost.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-brand-coral">No cost on {data.asAt}, so not valued ({data.missingCost.length}):</p>
+                <ul className="text-xs text-muted-foreground">
+                  {data.missingCost.slice(0, 8).map((m) => (
+                    <li key={m.variantId}>
+                      {m.title} {m.sku ? `(${m.sku})` : ''}: {m.units} units
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {data.negative.length > 0 && (
+              <p className="text-xs text-brand-coral">{data.negative.length} products are below zero: sold before an opening count was entered.</p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /** The books: trial balance, month close and opening balances. Every figure is read from the journal. */
 export function AccountingPage() {
   return (
@@ -319,6 +386,7 @@ export function AccountingPage() {
         <div className="space-y-6">
           <PeriodsCard />
           <OpeningBalancesCard />
+          <InventoryCheckCard />
         </div>
       </div>
     </>

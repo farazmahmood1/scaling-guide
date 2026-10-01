@@ -230,7 +230,20 @@ export interface Period {
   closableFrom: string;
 }
 
+export interface InventoryCheck {
+  asAt: string;
+  stockValue: string;
+  ledgerValue: string;
+  difference: string;
+  agrees: boolean;
+  variants: number;
+  units: number;
+  missingCost: Array<{ variantId: string; sku: string | null; title: string; units: number }>;
+  negative: Array<{ variantId: string; sku: string | null; title: string; units: number }>;
+}
+
 export interface OpeningBalances {
+  entriesBeforeOpening: { count: number; earliest: string | null };
   accounts: Array<{ key: string; code: string }>;
   opening: { date: string; lines: Array<{ code: string; balancePaisa: string; store: StoreKey | null }> } | null;
 }
