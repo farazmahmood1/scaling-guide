@@ -29,12 +29,13 @@ export const KIND_LABELS: Record<string, string> = {
 
 export const kindLabel = (kind: string): string => KIND_LABELS[kind] ?? kind.replaceAll('_', ' ');
 
-const REASONS: Record<string, string> = {
+export const REASONS: Record<string, string> = {
   account_has_no_store: 'the PostEx account has no store',
   foreign_ref_prefix: 'the reference has a prefix this store does not use',
   order_ref_not_found: 'no order has this number',
   ambiguous: 'several orders fit equally',
   no_candidate_matched: 'no order fits by number, COD and city, or phone',
+  unlinked_by_hand: 'a person unlinked it from the wrong order',
 };
 
 const text = (value: unknown): string => (typeof value === 'string' || typeof value === 'number' ? String(value) : '');

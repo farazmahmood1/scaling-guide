@@ -1,3 +1,4 @@
+import { formatKarachiFull } from '@/lib/format';
 import type { ListQuery } from '@/lib/list-query';
 
 /**
@@ -30,6 +31,8 @@ export interface StatusText {
 
 export const describeStatus = (code: string | null, message?: string | null): StatusText => {
   if (code === null) return { label: 'Booked, not yet moving', known: true, reason: null };
+  // An event with no code at all: PostEx's words if it gave any, never "Status code ".
+  if (!code.trim()) return { label: message?.trim() || 'Status update', known: false, reason: null };
   const label = STATUS_LABELS[code];
   const abbr = /\b(RFD|CNA|ICA|OPN)\b/.exec(message ?? '')?.[1];
   const reason = code === '0013' && abbr ? (FAILURE_REASONS[abbr] ?? null) : null;
@@ -53,6 +56,51 @@ export const STAGE_LABELS: Record<Stage, string> = {
 
 export const stageTone = (stage: string): 'default' | 'secondary' | 'destructive' | 'outline' =>
   stage === 'delivered' ? 'default' : stage === 'returned' || stage === 'returning' || stage === 'cancelled' ? 'destructive' : stage === 'attempted' ? 'outline' : 'secondary';
+
+export const PARCEL_FLAGS = ['unmatched', 'zero_cod', 'pr', 'not_checked_in', 'checked_in'] as const;
+
+export const FLAG_LABELS: Record<(typeof PARCEL_FLAGS)[number], string> = {
+  unmatched: 'No order linked',
+  zero_cod: 'Zero COD',
+  pr: 'PR parcel',
+  not_checked_in: 'Returned, not checked in',
+  checked_in: 'Checked in',
+};
+
+export interface TimelineEntry {
+  code: string;
+  label: string;
+  known: boolean;
+  reason: string | null;
+  /** PostEx's own message, when it says more than our label does. */
+  detail: string | null;
+  /** Karachi time with the zone, or a dash when PostEx gave none or gave something unreadable. */
+  when: string;
+}
+
+const karachiStamp = (iso: string | null): string => {
+  try {
+    return formatKarachiFull(iso);
+  } catch {
+    // Intl throws on a string that is not a date; one bad event must not take the page down.
+    return '—';
+  }
+};
+
+/** Every event of a parcel in words and Karachi time. Total: no code, known or not, throws. */
+export const timelineEntries = (events: ReadonlyArray<{ code: string; message: string; occurredAt: string | null }>): TimelineEntry[] =>
+  events.map((e) => {
+    const text = describeStatus(e.code, e.message);
+    const message = e.message?.trim() ?? '';
+    return {
+      code: e.code,
+      label: text.label,
+      known: text.known,
+      reason: text.reason,
+      detail: message && message !== text.label && !text.label.startsWith(message) ? message : null,
+      when: karachiStamp(e.occurredAt),
+    };
+  });
 
 /** The parcels API address for a list view: the same names the URL uses, so the two never drift. */
 export const parcelsPath = (q: ListQuery, page: { page: number; pageSize: number } = q): string => {

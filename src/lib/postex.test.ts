@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { emptyPending, fail, start, stillWaiting, succeed, withPending } from '@/lib/check-in';
+import { emptyPending, fail, start, stillWaiting, submitCheckIn, succeed, withPending } from '@/lib/check-in';
 import { STATUS_LABELS, describeStatus, parcelsPath } from '@/lib/postex';
 
 describe('PostEx statuses in words', () => {
@@ -22,6 +22,7 @@ describe('PostEx statuses in words', () => {
   it('renders a code it does not know with PostEx\'s own words, marked unknown', () => {
     expect(describeStatus('0099', 'Shifted to hub')).toEqual({ label: 'Shifted to hub (code 0099)', known: false, reason: null });
     expect(describeStatus('7777', '')).toEqual({ label: 'Status code 7777', known: false, reason: null });
+    expect(describeStatus('', 'Something')).toEqual({ label: 'Something', known: false, reason: null });
   });
 });
 
@@ -53,6 +54,52 @@ describe('optimistic check-in', () => {
     const p = start(start(emptyPending(), '1', 'restocked'), '1', 'damaged');
     expect(p.shown['1']).toBe('restocked');
     expect(p.inFlight).toEqual(['1']);
+  });
+});
+
+describe('check-in against a server', () => {
+  const run = (send: () => Promise<unknown>, start0 = emptyPending()) => {
+    let state = start0;
+    const seen: Array<string | undefined> = [];
+    const result = submitCheckIn({
+      shipmentId: '7',
+      outcome: 'damaged',
+      current: () => state,
+      apply: (change) => {
+        state = change(state);
+        seen.push(state.shown['7']);
+      },
+      send,
+    });
+    return { result, state: () => state, seen };
+  };
+
+  it('shows the outcome before the server answers, and keeps it after', async () => {
+    let release!: () => void;
+    const { result, state, seen } = run(() => new Promise((resolve) => (release = () => resolve(null))));
+    expect(seen).toEqual(['damaged']);
+    expect(state().inFlight).toEqual(['7']);
+    release();
+    await expect(result).resolves.toBe(true);
+    expect(state().shown['7']).toBe('damaged');
+    expect(state().inFlight).toEqual([]);
+  });
+
+  it('rolls back and rethrows when the server refuses', async () => {
+    const { result, state, seen } = run(() => Promise.reject(new Error('Already checked in')));
+    await expect(result).rejects.toThrow('Already checked in');
+    expect(seen).toEqual(['damaged', undefined]);
+    expect(state()).toEqual(emptyPending());
+  });
+
+  it('sends nothing for a second click while the first is out', async () => {
+    let sent = 0;
+    const { result } = run(
+      async () => void sent++,
+      start(emptyPending(), '7', 'restocked'),
+    );
+    await expect(result).resolves.toBe(false);
+    expect(sent).toBe(0);
   });
 });
 

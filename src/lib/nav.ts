@@ -1,9 +1,10 @@
-import type { Role } from '@/lib/api';
+import type { Permission } from '@/lib/api';
 
 /**
- * The app's modules: one route each, in navigation order, with the roles that may use it
- * (BUILD-PLAN Step 15: each role sees only its own surface). The backend enforces access on
- * every request; this only decides what the navigation shows, so a module a role cannot use is
+ * The app's modules: one route each, in navigation order, with the permission each needs. The
+ * permissions are the server's own (it sends the signed-in person's list), so what the menu shows
+ * and what the server allows are one table, not two that could drift. The backend enforces access on
+ * every request; this only decides what the navigation shows, so a module a person cannot use is
  * hidden, never shown disabled.
  */
 export type ModuleKey =
@@ -28,31 +29,34 @@ export interface Module {
   /** One line under the title, for the placeholder and the page header. */
   summary: string;
   group: 'Daily work' | 'Stock and buying' | 'Money';
-  roles: readonly Role[];
+  /** The permission that opens this module. */
+  requires: Permission;
 }
 
-const ALL: readonly Role[] = ['owner', 'manager', 'operations', 'agent', 'accountant'];
-
 export const MODULES: readonly Module[] = [
-  { key: 'overview', path: '/', label: 'Overview', summary: 'Headline figures across both brands.', group: 'Daily work', roles: ALL },
-  { key: 'orders', path: '/orders', label: 'Orders', summary: 'Every Shopify order and the state it is in.', group: 'Daily work', roles: ['owner', 'manager', 'operations', 'agent'] },
-  { key: 'confirmations', path: '/confirmations', label: 'Confirmations', summary: 'Confirm cash-on-delivery orders before they are booked.', group: 'Daily work', roles: ['owner', 'manager', 'operations', 'agent'] },
-  { key: 'parcels', path: '/parcels', label: 'Parcels', summary: 'PostEx parcels, their history and their charges.', group: 'Daily work', roles: ['owner', 'manager', 'operations'] },
-  { key: 'returns', path: '/returns', label: 'Returns', summary: 'Parcels PostEx sent back, waiting to be checked in.', group: 'Daily work', roles: ['owner', 'manager', 'operations'] },
-  { key: 'reconciliation', path: '/reconciliation', label: 'Reconciliation', summary: 'Parcels, orders and cash that do not agree.', group: 'Daily work', roles: ['owner', 'manager', 'operations', 'accountant'] },
-  { key: 'inventory', path: '/inventory', label: 'Inventory', summary: 'Stock per product and location, counts and corrections.', group: 'Stock and buying', roles: ['owner', 'manager', 'operations'] },
-  { key: 'purchase', path: '/purchase', label: 'Purchase', summary: 'Requests, quotations, purchase orders, receipts and vendor bills.', group: 'Stock and buying', roles: ['owner', 'manager', 'operations', 'accountant'] },
-  { key: 'partners', path: '/partners', label: 'Partners', summary: 'Stock at retail partners and their sales sheets.', group: 'Stock and buying', roles: ['owner', 'manager', 'operations', 'accountant'] },
-  { key: 'pr', path: '/pr', label: 'PR', summary: 'Influencers, their codes, PR sends and posts.', group: 'Stock and buying', roles: ['owner', 'manager', 'operations'] },
-  { key: 'accounting', path: '/accounting', label: 'Accounting', summary: 'Trial balance, month close and opening balances.', group: 'Money', roles: ['owner', 'manager', 'accountant'] },
-  { key: 'reports', path: '/reports', label: 'Reports', summary: 'Profit and loss, breakdowns and ledgers, each figure drilling down.', group: 'Money', roles: ['owner', 'manager', 'accountant'] },
-  { key: 'settings', path: '/settings', label: 'Settings', summary: 'Matching, confirmation tags, desk and purchasing settings.', group: 'Money', roles: ['owner', 'manager'] },
+  { key: 'overview', path: '/', label: 'Overview', summary: 'Headline figures across both brands.', group: 'Daily work', requires: 'dashboard.read' },
+  { key: 'orders', path: '/orders', label: 'Orders', summary: 'Every Shopify order and the state it is in.', group: 'Daily work', requires: 'orders.read' },
+  { key: 'confirmations', path: '/confirmations', label: 'Confirmations', summary: 'Confirm cash-on-delivery orders before they are booked.', group: 'Daily work', requires: 'confirmations.work' },
+  { key: 'parcels', path: '/parcels', label: 'Parcels', summary: 'PostEx parcels, their history and their charges.', group: 'Daily work', requires: 'parcels.read' },
+  { key: 'returns', path: '/returns', label: 'Returns', summary: 'Parcels PostEx sent back, waiting to be checked in.', group: 'Daily work', requires: 'returns.read' },
+  { key: 'reconciliation', path: '/reconciliation', label: 'Reconciliation', summary: 'Parcels, orders and cash that do not agree.', group: 'Daily work', requires: 'reconciliation.read' },
+  { key: 'inventory', path: '/inventory', label: 'Inventory', summary: 'Stock per product and location, counts and corrections.', group: 'Stock and buying', requires: 'stock.read' },
+  { key: 'purchase', path: '/purchase', label: 'Purchase', summary: 'Requests, quotations, purchase orders, receipts and vendor bills.', group: 'Stock and buying', requires: 'purchasing.read' },
+  { key: 'partners', path: '/partners', label: 'Partners', summary: 'Stock at retail partners and their sales sheets.', group: 'Stock and buying', requires: 'partners.read' },
+  { key: 'pr', path: '/pr', label: 'PR', summary: 'Influencers, their codes, PR sends and posts.', group: 'Stock and buying', requires: 'pr.read' },
+  { key: 'accounting', path: '/accounting', label: 'Accounting', summary: 'Invoices, bills, payments, month close and opening balances.', group: 'Money', requires: 'accounting.read' },
+  { key: 'reports', path: '/reports', label: 'Reports', summary: 'Profit and loss, breakdowns and ledgers, each figure drilling down.', group: 'Money', requires: 'reports.read' },
+  { key: 'settings', path: '/settings', label: 'Settings', summary: 'Connections, alerts, the confirmation desk, purchasing, month close and users.', group: 'Money', requires: 'settings.manage' },
 ];
 
-export const canUse = (module: Module, role: Role | undefined): boolean => role !== undefined && module.roles.includes(role);
+/** Whether a set of permissions (the server's list for this person) opens a module. */
+export const canUse = (module: Module, permissions: readonly string[] | undefined): boolean => permissions !== undefined && permissions.includes(module.requires);
 
-/** The modules a role may use, in navigation order. */
-export const visibleModules = (role: Role | undefined): Module[] => MODULES.filter((m) => canUse(m, role));
+/** The modules a person may use, in navigation order. Recomputed whenever their permissions change. */
+export const visibleModules = (permissions: readonly string[] | undefined): Module[] => MODULES.filter((m) => canUse(m, permissions));
+
+/** Where someone lands when the home page is not theirs: the first module they may use. */
+export const homePath = (permissions: readonly string[] | undefined): string => visibleModules(permissions)[0]?.path ?? '/account';
 
 export const moduleByKey = (key: ModuleKey): Module => MODULES.find((m) => m.key === key)!;
 
@@ -63,7 +67,7 @@ export const moduleForPath = (pathname: string): Module | undefined => {
 };
 
 /** Routes outside the navigation: their tab titles. */
-export const EXTRA_TITLES: Record<string, string> = { '/dev/table': 'Table demo' };
+export const EXTRA_TITLES: Record<string, string> = { '/dev/table': 'Table demo', '/account': 'My account' };
 
 /** The tab title for a path: its module, a known extra route, or "Not found". */
 export const titleForPath = (pathname: string): string =>

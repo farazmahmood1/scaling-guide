@@ -1,156 +1,21 @@
-import { useEffect, useState } from 'react';
-import { Check, EyeOff, Link2, RefreshCw } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState } from 'react';
+import { CircleCheck, RefreshCw } from 'lucide-react';
 
+import { type Closed } from '@/components/review-item';
+import { useAuth } from '@/auth/auth-context';
+import { ReviewGroup } from '@/components/review-group';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/use-api';
-import {
-  type ItemStatus,
-  type MatchingSetting,
-  type OrderCandidate,
-  type ReconciliationSummary,
-  type ReviewItem,
-  type ReviewItemPage,
-  type StoreKey,
-  apiGet,
-  apiPost,
-  apiPut,
-} from '@/lib/api';
-import { describeItem, formatPaisa, kindLabel, parsePrefixes, percent } from '@/lib/format';
+import { type ItemStatus, type MatchingSetting, type ReconciliationSummary, type StoreKey, apiPut } from '@/lib/api';
+import { KIND_LABELS, kindLabel, parsePrefixes, percent } from '@/lib/format';
+import { dropOne, orderKinds } from '@/lib/reconciliation';
+import { toast } from 'sonner';
 
 const STORE_LABEL: Record<StoreKey, string> = { nur: 'NUR by Juggun', organics: "Juggun's Organics" };
 const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
-
-/** Pick an order for a parcel: suggested candidates, or any order number typed in. */
-function LinkPanel({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
-  const [candidates, setCandidates] = useState<OrderCandidate[]>();
-  const [orderNumber, setOrderNumber] = useState('');
-  const [note, setNote] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    apiGet<{ candidates: OrderCandidate[] }>(`/api/v1/reconciliation/items/${item.id}/candidates`, controller.signal)
-      .then((r) => setCandidates(r.candidates))
-      .catch(() => setCandidates([]));
-    return () => controller.abort();
-  }, [item.id]);
-
-  const link = async (target: { orderId: string } | { orderNumber: string }) => {
-    setSaving(true);
-    try {
-      const result = await apiPost<{ orderNumber: string }>(`/api/v1/reconciliation/items/${item.id}/link`, { ...target, ...(note.trim() ? { note: note.trim() } : {}) });
-      toast.success(`${item.trackingNumber} linked to ${result.orderNumber}`);
-      onDone();
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Link failed');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="mt-3 space-y-3 rounded-lg border bg-muted/40 p-3">
-      <p className="text-xs text-muted-foreground">Orders of this store placed around the booking, or with the same number:</p>
-      {!candidates && <Skeleton className="h-10 w-full" />}
-      {candidates?.length === 0 && <p className="text-sm text-muted-foreground">No nearby orders. Type the order number instead.</p>}
-      <div className="flex flex-wrap gap-2">
-        {candidates?.map((c) => (
-          <Button key={c.id} size="sm" variant="outline" disabled={saving} onClick={() => link({ orderId: c.id })}>
-            {c.orderNumber} · {formatPaisa(c.totalPaisa)}
-            {c.city ? ` · ${c.city}` : ''} · {new Date(c.placedAt).toLocaleDateString()}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Input className="w-40" placeholder="#1234" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} />
-        <Input className="min-w-40 flex-1" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-        <Button size="sm" disabled={saving || !orderNumber.trim()} onClick={() => link({ orderNumber: orderNumber.trim() })}>
-          <Link2 className="size-4" />
-          Link
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function ItemRow({ item, onChanged }: { item: ReviewItem; onChanged: () => void }) {
-  const [mode, setMode] = useState<'idle' | 'resolve' | 'ignore' | 'link'>('idle');
-  const [note, setNote] = useState('');
-  const [saving, setSaving] = useState(false);
-  const canLink = item.status === 'open' && item.kind === 'unmatched_shipment' && item.shipmentId;
-
-  const decide = async (action: 'resolve' | 'ignore') => {
-    setSaving(true);
-    try {
-      await apiPost(`/api/v1/reconciliation/items/${item.id}/${action}`, { note: note.trim() });
-      toast.success(action === 'resolve' ? 'Resolved' : 'Ignored');
-      onChanged();
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Could not save');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="border-b py-3 last:border-b-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={item.severity === 'info' ? 'secondary' : 'outline'}>{kindLabel(item.kind)}</Badge>
-            {item.storeKey && <span className="text-xs text-muted-foreground">{STORE_LABEL[item.storeKey]}</span>}
-            {item.trackingNumber && <span className="font-mono text-xs">{item.trackingNumber}</span>}
-            {item.orderNumber && <span className="text-xs">{item.orderNumber}</span>}
-          </div>
-          <p className="mt-1 text-sm">{describeItem(item)}</p>
-          <p className="text-xs text-muted-foreground">
-            Opened {new Date(item.createdAt).toLocaleString()}
-            {item.resolvedAt && ` · ${item.status} ${new Date(item.resolvedAt).toLocaleString()} by ${item.resolvedBy ?? 'the system'}`}
-            {item.note && ` · “${item.note}”`}
-          </p>
-        </div>
-        {item.status === 'open' && (
-          <div className="flex shrink-0 gap-1">
-            {canLink && (
-              <Button size="sm" variant={mode === 'link' ? 'secondary' : 'outline'} onClick={() => setMode(mode === 'link' ? 'idle' : 'link')}>
-                <Link2 className="size-4" />
-                Link order
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={() => setMode(mode === 'resolve' ? 'idle' : 'resolve')}>
-              <Check className="size-4" />
-              Resolve
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setMode(mode === 'ignore' ? 'idle' : 'ignore')}>
-              <EyeOff className="size-4" />
-              Ignore
-            </Button>
-          </div>
-        )}
-      </div>
-      {(mode === 'resolve' || mode === 'ignore') && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Input
-            className="min-w-48 flex-1"
-            placeholder={mode === 'resolve' ? 'What was done? (required)' : 'Why is this not a problem? (required)'}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            autoFocus
-          />
-          <Button size="sm" disabled={saving || !note.trim()} onClick={() => decide(mode)}>
-            {mode === 'resolve' ? 'Mark resolved' : 'Ignore for good'}
-          </Button>
-        </div>
-      )}
-      {mode === 'link' && <LinkPanel item={item} onDone={onChanged} />}
-    </div>
-  );
-}
 
 /** Match rate per PostEx account and the prefixes seen on parcels, with the setting to accept them. */
 function MatchingPanel({ summary, onSaved }: { summary?: ReconciliationSummary; onSaved: () => void }) {
@@ -234,33 +99,35 @@ function MatchingPanel({ summary, onSaved }: { summary?: ReconciliationSummary; 
 }
 
 /**
- * The reconciliation queue: everything between Shopify and PostEx that a person must look at.
- * Every decision is recorded with the signed-in user and a note.
+ * The reconciliation queue: everything between Shopify and PostEx that a person must look at,
+ * grouped by the rule that raised it. Every decision is recorded with the signed-in user and a
+ * note. Closing an item removes it from its group and lowers the counts; nothing is re-fetched.
  */
 export function ReconciliationPage() {
-  const [kind, setKind] = useState('');
+  const { can } = useAuth();
+  // A role that may read the queue but not work it (the accountant) is not offered the buttons.
+  const canWork = can('reconciliation.work');
   const [status, setStatus] = useState<ItemStatus>('open');
+  const [historyKind, setHistoryKind] = useState('');
   const summary = useApi<ReconciliationSummary>('/api/v1/reconciliation/summary');
-  const path = `/api/v1/reconciliation/items?status=${status}${kind ? `&kind=${kind}` : ''}`;
-  const first = useApi<ReviewItemPage>(path);
-  // Later pages belong to the first page they followed; a reload or a new filter drops them.
-  const [later, setLater] = useState<{ after?: ReviewItemPage; pages: ReviewItemPage[] }>({ pages: [] });
-  const extra = later.after === first.data ? later.pages : [];
-  const nextBefore = (extra.at(-1) ?? first.data)?.nextBefore ?? null;
+  // The open counts as this screen has them: the server's, less what has been closed since.
+  const [counts, setCounts] = useState<{ source?: ReconciliationSummary; open: Record<string, number> }>({ open: {} });
+  if (summary.data && counts.source !== summary.data) setCounts({ source: summary.data, open: summary.data.open });
 
-  const loadMore = async () => {
-    if (!nextBefore) return;
-    const more = await apiGet<ReviewItemPage>(`${path}&before=${nextBefore}`);
-    setLater({ after: first.data, pages: [...extra, more] });
+  // Bumped when an unlink opens a new "without an order" item, so that one group reads again.
+  const [unmatchedReads, setUnmatchedReads] = useState(0);
+
+  const onClosed = (kind: string, how: Closed) => {
+    setCounts((c) => ({ ...c, open: dropOne(c.open, kind) }));
+    // Linking or unlinking changes the match rate, so the small summary is read again; the
+    // lists are not, except the one an unlink just added a parcel to.
+    if (how === 'linked' || how === 'unlinked') summary.reload();
+    if (how === 'unlinked') setUnmatchedReads((n) => n + 1);
   };
 
-  const refresh = () => {
-    first.reload();
-    summary.reload();
-  };
-  const counts = summary.data?.open ?? {};
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  const items = [...(first.data?.items ?? []), ...extra.flatMap((p) => p.items)];
+  const kinds = orderKinds(Object.keys(counts.open));
+  const total = Object.values(counts.open).reduce((a, b) => a + b, 0);
+  const ready = summary.data !== undefined;
 
   return (
     <>
@@ -269,45 +136,49 @@ export function ReconciliationPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Reconciliation</h1>
           <p className="text-sm text-muted-foreground">Parcels, orders and cash that do not agree. Nothing here is guessed away.</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={refresh} disabled={first.loading}>
-          <RefreshCw className={first.loading ? 'size-4 animate-spin' : 'size-4'} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <select className={selectClass} value={status} onChange={(e) => setStatus(e.target.value as ItemStatus)} aria-label="Show">
+            <option value="open">{ready ? `Open (${total})` : 'Open'}</option>
+            <option value="resolved">Resolved</option>
+            <option value="ignored">Ignored</option>
+          </select>
+          {status !== 'open' && (
+            <select className={selectClass} value={historyKind} onChange={(e) => setHistoryKind(e.target.value)} aria-label="Kind">
+              <option value="">All kinds</option>
+              {Object.keys(KIND_LABELS).map((k) => (
+                <option key={k} value={k}>
+                  {kindLabel(k)}
+                </option>
+              ))}
+            </select>
+          )}
+          <Button variant="ghost" size="sm" onClick={summary.reload} disabled={summary.loading}>
+            <RefreshCw className={summary.loading ? 'size-4 animate-spin' : 'size-4'} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex flex-wrap items-center gap-2">
-              <select className={selectClass} value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Kind">
-                <option value="">All kinds ({total} open)</option>
-                {Object.entries(counts).map(([k, n]) => (
-                  <option key={k} value={k}>
-                    {kindLabel(k)} ({n})
-                  </option>
-                ))}
-              </select>
-              <select className={selectClass} value={status} onChange={(e) => setStatus(e.target.value as ItemStatus)} aria-label="Status">
-                <option value="open">Open</option>
-                <option value="resolved">Resolved</option>
-                <option value="ignored">Ignored</option>
-              </select>
+        <div className="space-y-6 lg:col-span-2">
+          {summary.error && !summary.data && (
+            <p role="alert" className="text-sm text-brand-coral">
+              Could not load the queue: {summary.error}
+            </p>
+          )}
+          {status !== 'open' && <ReviewGroup key={`${status}:${historyKind}`} kind={historyKind || null} status={status} onClosed={() => {}} canAct={canWork} />}
+          {status === 'open' && ready && total === 0 && (
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-14 text-center" role="status">
+              <CircleCheck className="size-10 text-primary" />
+              <p className="text-lg font-medium">Everything agrees</p>
+              <p className="max-w-sm text-sm text-muted-foreground">Every parcel has its order, every COD matches, and no status is a mystery. There is nothing for a person to look at.</p>
             </div>
-          </CardHeader>
-          <CardContent>
-            {first.loading && !first.data && <Skeleton className="h-24 w-full" />}
-            {first.error && <p className="text-sm text-brand-coral">Could not load the queue: {first.error}</p>}
-            {first.data && items.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nothing {status} here.</p>}
-            {items.map((item) => (
-              <ItemRow key={item.id} item={item} onChanged={refresh} />
+          )}
+          {status === 'open' &&
+            kinds.map((kind) => (
+              <ReviewGroup key={kind === 'unmatched_shipment' ? `${kind}:${unmatchedReads}` : kind} kind={kind} status="open" count={counts.open[kind]} onClosed={onClosed} canAct={canWork} />
             ))}
-            {nextBefore && (
-              <Button variant="ghost" size="sm" className="mt-3" onClick={loadMore}>
-                Load more
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        </div>
 
         <MatchingPanel summary={summary.data} onSaved={summary.reload} />
       </div>

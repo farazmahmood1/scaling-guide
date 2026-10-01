@@ -28,5 +28,30 @@ export const fail = (p: Pending, shipmentId: string): Pending => {
 export const withPending = <T extends { id: string; checkedIn: Outcome | null }>(rows: readonly T[], p: Pending): T[] =>
   rows.map((r) => (r.checkedIn === null && p.shown[r.id] ? { ...r, checkedIn: p.shown[r.id]! } : r));
 
+/**
+ * One check-in, optimistically: show the outcome now, send it, and take it back if the server
+ * refuses. Resolves true when the server agreed. A second click while the first is out sends
+ * nothing.
+ */
+export async function submitCheckIn(args: {
+  shipmentId: string;
+  outcome: Outcome;
+  current: () => Pending;
+  apply: (change: (p: Pending) => Pending) => void;
+  send: () => Promise<unknown>;
+}): Promise<boolean> {
+  const { shipmentId, outcome, current, apply, send } = args;
+  if (current().inFlight.includes(shipmentId)) return false;
+  apply((p) => start(p, shipmentId, outcome));
+  try {
+    await send();
+    apply((p) => succeed(p, shipmentId));
+    return true;
+  } catch (cause) {
+    apply((p) => fail(p, shipmentId));
+    throw cause;
+  }
+}
+
 /** How many are still waiting, counting the ones just checked in as done. */
 export const stillWaiting = (waiting: readonly string[], p: Pending): number => waiting.filter((id) => !p.shown[id]).length;

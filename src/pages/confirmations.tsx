@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, CalendarClock, ChevronLeft, ChevronRight, MessageCircle, Phone, RefreshCw, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useAuth } from '@/auth/auth-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -140,6 +141,10 @@ const DECISIONS: ReadonlyArray<{ outcome: Exclude<AttemptOutcome, 'rescheduled'>
 
 function OrderPanel({ orderId, onClose, onRecorded }: { orderId: string; onClose: () => void; onRecorded: () => void }) {
   const { data, error, loading, reload } = useApi<{ order: DeskOrder; history: CustomerHistory | null }>(`/api/v1/confirmations/orders/${orderId}`);
+  // The server withholds the number from a role that may not see it; this makes the screen say so
+  // instead of showing "No number", and shows nothing a number would have filled.
+  const { can } = useAuth();
+  const seesPhones = can('pii.phone');
   const [channel, setChannel] = useState<Channel>('whatsapp');
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
@@ -208,7 +213,7 @@ function OrderPanel({ orderId, onClose, onRecorded }: { orderId: string; onClose
         <div className="space-y-1 text-sm">
           <div className="font-medium">{order.customerName ?? 'Customer'}</div>
           <div className="text-muted-foreground">
-            {order.phone ?? 'No number'} · {order.city ?? 'No city'}
+            {seesPhones ? (order.phone ?? 'No number') : 'Phone number hidden for your role'} · {order.city ?? 'No city'}
           </div>
           <ul className="pt-1 text-xs text-muted-foreground">
             {order.lines.map((line, i) => (
@@ -226,7 +231,9 @@ function OrderPanel({ orderId, onClose, onRecorded }: { orderId: string; onClose
           </div>
         </div>
 
-        {order.whatsappUrl && order.callUrl ? (
+        {!seesPhones ? (
+          <p className="text-sm text-muted-foreground">Your role cannot see customers' phone numbers, so there is no way to contact them from here.</p>
+        ) : order.whatsappUrl && order.callUrl ? (
           <div className="flex flex-wrap gap-2">
             <Button asChild className="bg-[#1fa855] text-white hover:bg-[#1a9049]">
               <a href={order.whatsappUrl} target="_blank" rel="noreferrer" onClick={() => setChannel('whatsapp')}>

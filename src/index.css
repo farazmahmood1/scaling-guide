@@ -151,6 +151,22 @@
     --ring: #e44946;
 }
 
+/*
+ * Chart marks. Two series, brand-themed and run through the dataviz validator against the card
+ * surface in each mode (lightness band, chroma, colour-blind separation, contrast: all pass).
+ * Brand navy itself (#0a192f) is too dark to read as a hue on a chart, so the first series is a
+ * lifted step of it; navy stays the ink for headline figures. Dark mode has its own steps.
+ */
+:root {
+    --viz-1: #2a4f8f;
+    --viz-2: #e44946;
+}
+
+.dark {
+    --viz-1: #5f86cf;
+    --viz-2: #e44946;
+}
+
 @theme inline {
     --color-brand-navy: var(--brand-navy);
     --color-brand-navy-soft: var(--brand-navy-soft);

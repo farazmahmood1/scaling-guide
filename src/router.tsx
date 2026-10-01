@@ -17,17 +17,17 @@ const placeholder = (key: ModuleKey) => import('@/pages/placeholder').then(({ Pl
 const PAGES: Record<ModuleKey, () => Promise<ReactElement>> = {
   overview: () => import('@/pages/overview').then(({ OverviewPage }) => <OverviewPage />),
   orders: () => placeholder('orders'),
-  parcels: () => placeholder('parcels'),
+  parcels: () => import('@/pages/parcels').then(({ ParcelsPage }) => <ParcelsPage />),
   returns: () => import('@/pages/returns').then(({ ReturnsPage }) => <ReturnsPage />),
   reconciliation: () => import('@/pages/reconciliation').then(({ ReconciliationPage }) => <ReconciliationPage />),
   confirmations: () => import('@/pages/confirmations').then(({ ConfirmationsPage }) => <ConfirmationsPage />),
   inventory: () => import('@/pages/inventory').then(({ InventoryPage }) => <InventoryPage />),
-  purchase: () => placeholder('purchase'),
-  partners: () => placeholder('partners'),
+  purchase: () => import('@/pages/purchase').then(({ PurchasePage }) => <PurchasePage />),
+  partners: () => import('@/pages/partners').then(({ PartnersPage }) => <PartnersPage />),
   pr: () => import('@/pages/influencers').then(({ InfluencersPage }) => <InfluencersPage />),
   accounting: () => import('@/pages/accounting').then(({ AccountingPage }) => <AccountingPage />),
-  reports: () => placeholder('reports'),
-  settings: () => placeholder('settings'),
+  reports: () => import('@/pages/reports').then(({ ReportsPage }) => <ReportsPage />),
+  settings: () => import('@/pages/settings').then(({ SettingsPage }) => <SettingsPage />),
 };
 
 export const routes: RouteObject[] = [
@@ -57,6 +57,20 @@ export const routes: RouteObject[] = [
           },
         }),
       ),
+      // One parcel: part of the Parcels module, so it takes that module's role gate and title.
+      {
+        path: 'parcels/:id',
+        errorElement: <RouteError />,
+        lazy: async () => {
+          try {
+            return { element: <RequireRole moduleKey="parcels">{await import('@/pages/parcel-detail').then(({ ParcelDetailPage }) => <ParcelDetailPage />)}</RequireRole> };
+          } catch (error) {
+            return { element: <Rethrow error={error} /> };
+          }
+        },
+      },
+      // Everyone's own account: not a module, so no role gates it.
+      { path: 'account', errorElement: <RouteError />, lazy: async () => ({ element: await import('@/pages/account').then(({ AccountPage }) => <AccountPage />) }) },
       // Component demos, outside the navigation.
       { path: 'dev/table', errorElement: <RouteError />, lazy: async () => ({ element: await import('@/pages/dev/table-demo').then(({ TableDemoPage }) => <TableDemoPage />) }) },
       { path: '*', element: <NotFoundPage /> },

@@ -1,19 +1,22 @@
-import { Fragment, useState } from 'react';
-import { Lock, RefreshCw, Save } from 'lucide-react';
+import { useState } from 'react';
+import { Save } from 'lucide-react';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 
+import { BillsView, DocumentLines, InvoicesView, PaymentsView } from '@/components/accounting-documents';
+import { PeriodClose } from '@/components/period-close';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useApi } from '@/hooks/use-api';
-import { type InventoryCheck, type LedgerLine, type OpeningBalances, type Period, type StoreKey, type TrialBalance, apiPost, apiPut } from '@/lib/api';
+import { usePeriods } from '@/hooks/use-periods';
+import { type DrillSpec, type InventoryCheck, type OpeningBalances, type StoreKey, apiPut } from '@/lib/api';
 import { formatPaisa, paisaToInput, parseRupees } from '@/lib/format';
 
 const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const ACCOUNT_NAMES: Record<string, string> = {
   '1000': 'Bank',
   '1100': 'COD receivable (PostEx)',
@@ -27,181 +30,6 @@ const ACCOUNT_NAMES: Record<string, string> = {
 };
 /** Assets carry debit balances; liabilities and equity credit balances, entered as positive numbers. */
 const CREDIT_NORMAL = new Set(['2000', '2100', '3000']);
-
-/** The entries behind one trial balance figure. */
-function Ledger({ code, query }: { code: string; query: string }) {
-  const { data, loading, error } = useApi<{ lines: LedgerLine[] }>(`/api/v1/accounting/accounts/${code}/lines?${query}`);
-  if (loading && !data) return <Skeleton className="h-16 w-full" />;
-  if (error) return <p className="text-sm text-brand-coral">{error}</p>;
-  return (
-    <div className="max-h-72 overflow-y-auto rounded-lg border bg-muted/30">
-      <Table>
-        <TableBody>
-          {data?.lines.map((line) => (
-            <TableRow key={`${line.entryId}:${line.debit}:${line.credit}`} className={line.reversed ? 'text-muted-foreground line-through' : ''}>
-              <TableCell className="whitespace-nowrap text-xs">{line.date}</TableCell>
-              <TableCell className="text-xs">{line.memo}</TableCell>
-              <TableCell className="text-right text-xs">{line.debit !== '0' ? formatPaisa(line.debit) : ''}</TableCell>
-              <TableCell className="text-right text-xs">{line.credit !== '0' ? formatPaisa(line.credit) : ''}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {data && data.lines.length === 200 && <p className="p-2 text-xs text-muted-foreground">Showing the latest 200 lines.</p>}
-    </div>
-  );
-}
-
-function TrialBalanceCard() {
-  const [to, setTo] = useState('');
-  const [store, setStore] = useState<'' | StoreKey>('');
-  const [open, setOpen] = useState<string>();
-  const query = new URLSearchParams({ ...(to ? { to } : {}), ...(store ? { store } : {}) }).toString();
-  const { data, error, loading, reload } = useApi<TrialBalance>(`/api/v1/accounting/trial-balance?${query}`);
-
-  return (
-    <Card className="lg:col-span-2">
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <CardTitle>Trial balance</CardTitle>
-            <CardDescription>Every account's debits and credits. Click a row to see its entries.</CardDescription>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Input type="date" className="w-40" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Up to date" />
-            <select className={selectClass} value={store} onChange={(e) => setStore(e.target.value as '' | StoreKey)} aria-label="Brand">
-              <option value="">Both brands</option>
-              <option value="nur">NUR by Juggun</option>
-              <option value="organics">Juggun's Organics</option>
-            </select>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading} aria-label="Refresh">
-              <RefreshCw className={loading ? 'size-4 animate-spin' : 'size-4'} />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {loading && !data && <Skeleton className="h-40 w-full" />}
-        {error && <p className="text-sm text-brand-coral">Could not load the trial balance: {error}</p>}
-        {data && data.rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nothing posted yet.</p>}
-        {data && data.rows.length > 0 && (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Account</TableHead>
-                  <TableHead className="text-right">Debit</TableHead>
-                  <TableHead className="text-right">Credit</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.rows.map((row) => (
-                  <Fragment key={row.code}>
-                    <TableRow className="cursor-pointer" onClick={() => setOpen(open === row.code ? undefined : row.code)}>
-                      <TableCell>
-                        <span className="font-mono text-xs text-muted-foreground">{row.code}</span> {row.name}
-                      </TableCell>
-                      <TableCell className="text-right">{formatPaisa(row.debit)}</TableCell>
-                      <TableCell className="text-right">{formatPaisa(row.credit)}</TableCell>
-                      <TableCell className="text-right font-medium">{formatPaisa(row.balance)}</TableCell>
-                    </TableRow>
-                    {open === row.code && (
-                      <TableRow>
-                        <TableCell colSpan={4}>
-                          <Ledger code={row.code} query={query} />
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </Fragment>
-                ))}
-              </TableBody>
-              <TableFooter>
-                <TableRow>
-                  <TableCell>
-                    Total{' '}
-                    <Badge variant={data.balanced ? 'secondary' : 'destructive'}>{data.balanced ? 'Balances' : 'Does not balance'}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">{formatPaisa(data.debit)}</TableCell>
-                  <TableCell className="text-right">{formatPaisa(data.credit)}</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableFooter>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function PeriodsCard() {
-  const { data, error, reload } = useApi<{ periods: Period[] }>('/api/v1/accounting/periods');
-  const [confirming, setConfirming] = useState<string>();
-  // Karachi's date when the page opened: whether a month may be closed yet (the server decides too).
-  const [today] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }));
-
-  const close = async (period: Period) => {
-    try {
-      await apiPost(`/api/v1/accounting/periods/${period.year}/${period.month}/close`, {});
-      toast.success(`${MONTHS[period.month - 1]} ${period.year} closed`);
-      setConfirming(undefined);
-      reload();
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Could not close the month');
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Month close</CardTitle>
-        <CardDescription>A month can be closed from the 5th of the next. Once closed, nothing can be dated in it; corrections go in the next open month.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {error && <p className="text-sm text-brand-coral">{error}</p>}
-        {data?.periods.map((period) => {
-          const key = `${period.year}-${period.month}`;
-          const canClose = period.status === 'open' && today >= period.closableFrom;
-          return (
-            <div key={key} className="flex items-center justify-between gap-2 border-b py-2 text-sm last:border-b-0">
-              <div>
-                <p className="font-medium">
-                  {MONTHS[period.month - 1]} {period.year}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {period.entries} entries
-                  {period.status === 'closed'
-                    ? ` · closed ${period.closedAt ? new Date(period.closedAt).toLocaleDateString() : ''} by ${period.closedBy ?? 'unknown'}`
-                    : ` · can close from ${period.closableFrom}`}
-                </p>
-              </div>
-              {period.status === 'closed' ? (
-                <Badge variant="secondary" className="gap-1">
-                  <Lock className="size-3" />
-                  Closed
-                </Badge>
-              ) : confirming === key ? (
-                <div className="flex gap-1">
-                  <Button size="sm" variant="destructive" onClick={() => close(period)}>
-                    Close for good
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setConfirming(undefined)}>
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <Button size="sm" variant="outline" disabled={!canClose} onClick={() => setConfirming(key)}>
-                  Close month
-                </Button>
-              )}
-            </div>
-          );
-        })}
-      </CardContent>
-    </Card>
-  );
-}
 
 interface Draft {
   code: string;
@@ -373,22 +201,91 @@ function InventoryCheckCard() {
   );
 }
 
-/** The books: trial balance, month close and opening balances. Every figure is read from the journal. */
+
+const DOCUMENTS = [
+  { key: 'invoices', label: 'Invoices' },
+  { key: 'bills', label: 'Bills' },
+  { key: 'payments', label: 'Payments' },
+] as const;
+type DocumentKey = (typeof DOCUMENTS)[number]['key'];
+
+/** Invoices, bills and payments, each opening the journal lines it posted. */
+function Documents() {
+  const [kind, setKind] = useState<DocumentKey>('invoices');
+  const [open, setOpen] = useState<{ drill: DrillSpec; title: string }>();
+  const { closed } = usePeriods();
+  const onOpen = (drill: DrillSpec, title: string) => setOpen({ drill, title });
+  return (
+    <div className="space-y-4">
+      <div role="group" aria-label="Document" className="flex gap-1 text-sm">
+        {DOCUMENTS.map((d) => (
+          <button
+            key={d.key}
+            type="button"
+            aria-pressed={kind === d.key}
+            onClick={() => {
+              setKind(d.key);
+              setOpen(undefined);
+            }}
+            className="rounded-md px-3 py-1.5 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-pressed:bg-secondary aria-pressed:font-medium"
+          >
+            {d.label}
+          </button>
+        ))}
+      </div>
+      {kind === 'invoices' && <InvoicesView closed={closed} onOpen={onOpen} />}
+      {kind === 'bills' && <BillsView closed={closed} onOpen={onOpen} />}
+      {kind === 'payments' && <PaymentsView closed={closed} onOpen={onOpen} />}
+      {open && <DocumentLines drill={open.drill} title={open.title} closed={closed} onClose={() => setOpen(undefined)} />}
+    </div>
+  );
+}
+
+/** The books' documents, month close and set-up. The reports (P&L, trial balance, ledgers) are under Reports. */
 export function AccountingPage() {
   return (
     <>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Accounting</h1>
-        <p className="text-sm text-muted-foreground">Double-entry, posted from deliveries, PostEx charges and payouts. Revenue counts only once a parcel is delivered.</p>
+        <p className="text-sm text-muted-foreground">
+          Double-entry, posted from deliveries, PostEx charges and payouts. Revenue counts only once a parcel is delivered. Profit and loss, the trial balance and the ledgers are in{' '}
+          <Link className="underline underline-offset-2" to="/reports">
+            Reports
+          </Link>
+          .
+        </p>
       </div>
-      <div className="grid gap-6 lg:grid-cols-3">
-        <TrialBalanceCard />
-        <div className="space-y-6">
-          <PeriodsCard />
-          <OpeningBalancesCard />
-          <InventoryCheckCard />
-        </div>
-      </div>
+      <Tabs defaultValue="documents">
+        <TabsList>
+          <TabsTrigger value="documents">Invoices, bills and payments</TabsTrigger>
+          <TabsTrigger value="close">Month close</TabsTrigger>
+          <TabsTrigger value="setup">Opening balances</TabsTrigger>
+        </TabsList>
+        <TabsContent value="documents" className="mt-3">
+          <Card>
+            <CardContent className="pt-6">
+              <Documents />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="close" className="mt-3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Month close</CardTitle>
+              <CardDescription>Months the books are final for are marked everywhere they appear.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PeriodClose />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="setup" className="mt-3">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <OpeningBalancesCard />
+            <InventoryCheckCard />
+          </div>
+        </TabsContent>
+      </Tabs>
     </>
   );
 }

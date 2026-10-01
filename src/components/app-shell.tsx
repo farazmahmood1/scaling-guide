@@ -78,10 +78,11 @@ function Drawer({ open, onClose, modules }: { open: boolean; onClose: () => void
  * route.
  */
 export function AppShell() {
-  const { user, signOut } = useAuth();
+  const { user, roleLabel, permissions, signOut } = useAuth();
   const { pathname } = useLocation();
   const [drawer, setDrawer] = useState(false);
-  const modules = visibleModules(user?.role);
+  // Drawn from the permissions the server last sent, so a role changed elsewhere changes this menu too.
+  const modules = visibleModules(permissions);
   const current = moduleForPath(pathname);
   // A page's code loads on its first visit; say so rather than leave the old page looking current.
   const loading = useNavigation().state === 'loading';
@@ -109,7 +110,10 @@ export function AppShell() {
           </div>
           <span className="hidden text-sm font-medium lg:inline">{current ? current.label : titleForPath(pathname)}</span>
           <div className="ml-auto flex min-w-0 items-center gap-3">
-            <span className="hidden truncate text-xs opacity-60 sm:inline">{user?.email}</span>
+            <NavLink to="/account" className="hidden min-w-0 truncate rounded px-1 text-xs opacity-70 hover:underline hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:inline" aria-label={`My account: ${user?.email ?? ''}, ${roleLabel ?? ''}`}>
+              {user?.email}
+              {roleLabel ? ` · ${roleLabel}` : ''}
+            </NavLink>
             <Button variant="ghost" size="sm" onClick={signOut} className="text-white/80 hover:bg-white/10 hover:text-white lg:text-muted-foreground lg:hover:bg-muted lg:hover:text-foreground">
               <LogOut className="size-4" />
               <span className="hidden sm:inline">Sign out</span>

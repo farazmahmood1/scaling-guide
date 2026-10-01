@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useAuth } from '@/auth/auth-context';
+import { MoveHistory } from '@/components/move-history';
+import { StockTable, StockTotals } from '@/components/stock-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useApi } from '@/hooks/use-api';
 import { type Quant, type StockComparisonRow, type StockLocation, type VariantHit, apiGet, apiPost } from '@/lib/api';
+import { pivotQuants } from '@/lib/stock';
 
 const REASONS = [
   { value: 'opening_stock', label: 'Opening stock' },
@@ -280,13 +284,20 @@ function ShopifyStockCard({ onDone }: { onDone: () => void }) {
   );
 }
 
-/** Current stock per product and location, straight from the ledger's quants. */
+/**
+ * Current stock per product, with each place a unit can be shown apart: the shelf, with PostEx,
+ * coming back, at partners, damaged. Opening a product shows every move behind its numbers.
+ */
 export function InventoryPage() {
-  const [location, setLocation] = useState('warehouse');
+  const { can } = useAuth();
+  const [store, setStore] = useState<'' | 'nur' | 'organics'>('');
   const [search, setSearch] = useState('');
-  const query = new URLSearchParams({ ...(location ? { location } : {}), ...(search.trim() ? { search: search.trim() } : {}) });
+  const [selected, setSelected] = useState<string | null>(null);
+  const query = new URLSearchParams({ ...(store ? { store } : {}), ...(search.trim() ? { search: search.trim() } : {}) });
   const quants = useApi<{ quants: Quant[] }>(`/api/v1/stock/quants?${query.toString()}`);
   const locations = useApi<{ locations: StockLocation[] }>('/api/v1/stock/locations');
+  const rows = useMemo(() => pivotQuants(quants.data?.quants ?? []), [quants.data]);
+  const open = rows.find((r) => r.variantId === selected);
 
   return (
     <>
@@ -294,7 +305,7 @@ export function InventoryPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
           <p className="text-sm text-muted-foreground">
-            Every unit is in exactly one place. Negative stock means the opening count has not been entered yet.
+            Every unit is in exactly one place. Units with PostEx or coming back are not on the shelf. Negative stock means the opening count has not been entered yet.
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={quants.reload} disabled={quants.loading}>
@@ -305,17 +316,13 @@ export function InventoryPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="space-y-3">
+            <StockTotals rows={rows} />
             <div className="flex flex-wrap items-center gap-2">
-              <select className={selectClass} value={location} onChange={(e) => setLocation(e.target.value)} aria-label="Location">
-                <option value="">All locations</option>
-                {(locations.data?.locations ?? [])
-                  .filter((l) => l.key)
-                  .map((l) => (
-                    <option key={l.id} value={l.key ?? ''}>
-                      {l.label}
-                    </option>
-                  ))}
+              <select className={selectClass} value={store} onChange={(e) => setStore(e.target.value as typeof store)} aria-label="Store">
+                <option value="">Both stores</option>
+                <option value="nur">NUR by Juggun</option>
+                <option value="organics">Juggun's Organics</option>
               </select>
               <Input className="w-full sm:w-64" placeholder="Search SKU or product" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
@@ -323,39 +330,13 @@ export function InventoryPage() {
           <CardContent>
             {quants.loading && !quants.data && <Skeleton className="h-24 w-full" />}
             {quants.error && <p className="text-sm text-brand-coral">Could not load stock: {quants.error}</p>}
-            {quants.data && quants.data.quants.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No stock recorded here.</p>}
-            {quants.data && quants.data.quants.length > 0 && (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Store</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead className="text-right">Units</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {quants.data.quants.map((q) => (
-                      <TableRow key={`${q.variant_id}:${q.location_id}`}>
-                        <TableCell>
-                          {q.product} <span className="text-muted-foreground">· {q.variant}</span>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{q.sku ?? '—'}</TableCell>
-                        <TableCell>{q.store}</TableCell>
-                        <TableCell>{q.location.replaceAll('_', ' ')}</TableCell>
-                        <TableCell className={q.qty < 0 ? 'text-right font-medium text-brand-coral' : 'text-right font-medium'}>{q.qty}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            {quants.data && rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No stock recorded for this view.</p>}
+            {rows.length > 0 && <StockTable rows={rows} selected={selected} onSelect={(id) => setSelected(selected === id ? null : id)} />}
+            {open && <MoveHistory key={open.variantId} variantId={open.variantId} title={`${open.product} · ${open.variant}${open.sku ? ` (${open.sku})` : ''}`} />}
           </CardContent>
         </Card>
 
-        <AdjustmentForm locations={locations.data?.locations ?? []} onDone={quants.reload} />
+        {can('stock.adjust') && <AdjustmentForm locations={locations.data?.locations ?? []} onDone={quants.reload} />}
         <ShopifyStockCard onDone={quants.reload} />
       </div>
     </>
