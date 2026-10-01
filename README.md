@@ -56,7 +56,7 @@ table, badge, input, separator, skeleton, tabs, dropdown-menu, sonner.
 
 ```
 src/
-  App.tsx                     Overview page
+  App.tsx                     sign-in gate and page switch
   main.tsx                    entry point, toaster
   index.css                   Tailwind + shadcn theme + brand colours
   components/
@@ -65,7 +65,16 @@ src/
     ui/                       shadcn components
   hooks/use-api.ts            small fetch hook
   lib/api.ts                  API client and shared types
+  lib/format.ts               paisa → rupees (exact, no floats), queue item wording
+  lib/route.ts                hash routes (#/returns): no router dependency, no Vercel rewrite
+  pages/overview.tsx          headline tiles and connections
+  pages/reconciliation.tsx    review queue: resolve, ignore, link a parcel to its order;
+                              match rate and the order-number prefixes setting
+  pages/returns.tsx           returns PostEx sent back that nobody has checked in; check-in
+  pages/inventory.tsx         stock per product and location; counts and corrections
 ```
+
+Every action on these pages is recorded by the backend in its audit log with the signed-in user.
 
 ## Notes
 
@@ -81,5 +90,5 @@ src/
 
 The build plan for the whole platform, frontend steps included, lives in the backend repository
 (`farazmahmood1/jubilant-octo-tribble-b`) at `docs/BUILD-PLAN.md`; section 3.1 has the week-by-week
-order. Next for this app: React Router and TanStack Query, then the orders, shipments, returns and
-confirmation pages for Release 1.
+order. Next for this app: React Router and TanStack Query (they replace the hash routes and
+`useApi` once caching matters), then the orders, shipments and confirmation pages for Release 1.

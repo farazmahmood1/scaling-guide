@@ -52,6 +52,9 @@ export const apiGet = <T>(path: string, signal?: AbortSignal): Promise<T> => req
 export const apiPost = <T>(path: string, data: unknown): Promise<T> =>
   request<T>(path, { method: 'POST', body: JSON.stringify(data) });
 
+export const apiPut = <T>(path: string, data: unknown): Promise<T> =>
+  request<T>(path, { method: 'PUT', body: JSON.stringify(data) });
+
 export interface SessionUser {
   email: string;
   name: string;
@@ -94,4 +97,105 @@ export interface IntegrationStatus {
     writesEnabled: boolean;
     accounts: Array<{ key: string; label: string; ready: boolean }>;
   };
+}
+
+export type StoreKey = 'nur' | 'organics';
+export type ItemStatus = 'open' | 'resolved' | 'ignored';
+
+/** One row of the reconciliation queue. `detail` is written by the backend jobs and holds no PII. */
+export interface ReviewItem {
+  id: string;
+  kind: string;
+  severity: 'info' | 'warning' | 'error';
+  status: ItemStatus;
+  storeKey: StoreKey | null;
+  orderId: string | null;
+  orderNumber: string | null;
+  shipmentId: string | null;
+  trackingNumber: string | null;
+  detail: Record<string, unknown>;
+  note: string | null;
+  resolvedBy: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface ReviewItemPage {
+  items: ReviewItem[];
+  nextBefore: string | null;
+}
+
+export interface PrefixCount {
+  prefix: string | null;
+  parcels: number;
+  matched: number;
+  configured: boolean;
+}
+
+export interface AccountMatchReport {
+  account: string;
+  storeKey: StoreKey | null;
+  parcels: number;
+  matched: number;
+  unmatched: number;
+  unmatchedRate: number;
+  unmatchedWithoutItem: number;
+  byMethod: Record<string, number>;
+  unparsedRefs: number;
+  prefixes: PrefixCount[];
+  withinTarget: boolean;
+}
+
+export interface ReconciliationSummary {
+  open: Record<string, number>;
+  matching: AccountMatchReport[];
+}
+
+export interface OrderCandidate {
+  id: string;
+  orderNumber: string;
+  /** Integer paisa as a decimal string: money never travels as a float. */
+  totalPaisa: string;
+  city: string | null;
+  placedAt: string;
+}
+
+export interface MatchingSetting {
+  refPrefixes: Record<StoreKey, string[]>;
+  windowDays: number;
+}
+
+export interface AwaitingReturn {
+  shipmentId: string;
+  trackingNumber: string;
+  account: string;
+  orderId: string | null;
+  returnedAt: string | null;
+}
+
+export interface StockLocation {
+  id: string;
+  key: string | null;
+  kind: string;
+  label: string;
+}
+
+export interface Quant {
+  variant_id: string;
+  store: StoreKey;
+  sku: string | null;
+  product: string;
+  variant: string;
+  location_id: string;
+  location: string;
+  location_kind: string;
+  qty: number;
+}
+
+export interface VariantHit {
+  id: string;
+  store: StoreKey;
+  sku: string | null;
+  product: string;
+  variant: string;
 }

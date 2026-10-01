@@ -3,10 +3,18 @@ import { LogOut } from 'lucide-react';
 
 import { useAuth } from '@/auth/auth-context';
 import { Button } from '@/components/ui/button';
+import { type Page, hrefFor } from '@/lib/route';
 
-const NAV = ['Overview', 'Orders', 'Returns', 'Inventory', 'Profit'] as const;
+const NAV: ReadonlyArray<{ label: string; page?: Page }> = [
+  { label: 'Overview', page: 'overview' },
+  { label: 'Reconciliation', page: 'reconciliation' },
+  { label: 'Returns', page: 'returns' },
+  { label: 'Inventory', page: 'inventory' },
+  { label: 'Orders' },
+  { label: 'Profit' },
+];
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ page, children }: { page: Page; children: ReactNode }) {
   const { user, signOut } = useAuth();
 
   return (
@@ -17,21 +25,28 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="flex size-7 items-center justify-center rounded-full bg-brand-coral text-sm font-bold">c</span>
             <span className="font-semibold tracking-tight">NUR Organics</span>
           </div>
-          <nav className="hidden items-center gap-1 text-sm sm:flex">
-            {NAV.map((item, index) => (
-              <span
-                key={item}
-                className={
-                  index === 0
-                    ? 'rounded-md bg-white/10 px-3 py-1.5 font-medium'
-                    : 'rounded-md px-3 py-1.5 text-white/60'
-                }
-                // Routing arrives with the first real pages; these are labels for now.
-                aria-disabled={index !== 0}
-              >
-                {item}
-              </span>
-            ))}
+          <nav className="flex min-w-0 items-center gap-1 overflow-x-auto text-sm">
+            {NAV.map((item) =>
+              item.page ? (
+                <a
+                  key={item.label}
+                  href={hrefFor(item.page)}
+                  aria-current={item.page === page ? 'page' : undefined}
+                  className={
+                    item.page === page
+                      ? 'rounded-md bg-white/10 px-3 py-1.5 font-medium'
+                      : 'rounded-md px-3 py-1.5 text-white/70 hover:bg-white/5 hover:text-white'
+                  }
+                >
+                  {item.label}
+                </a>
+              ) : (
+                // Pages not built yet stay labels.
+                <span key={item.label} className="rounded-md px-3 py-1.5 text-white/40" aria-disabled>
+                  {item.label}
+                </span>
+              ),
+            )}
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden text-xs text-white/50 sm:inline">{user?.email}</span>
