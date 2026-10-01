@@ -30,6 +30,19 @@ Only needed when the backend is somewhere other than `localhost:4000`:
 cp .env.example .env.local   # then set VITE_API_URL
 ```
 
+## Deployment (Vercel)
+
+The dashboard is deployed at `https://scaling-guide-flame.vercel.app`. `VITE_API_URL` is read at
+build time, so set it in the Vercel project settings to the backend's public URL, and add the
+Vercel origin to the backend's `CORS_ORIGIN`.
+
+Until the backend is public (it runs on localhost until the Render keys arrive), the deployed site
+cannot sign in: with no `VITE_API_URL`, its `/api` calls go to Vercel itself and get 404. Work
+locally with `npm run dev` against the local backend instead.
+
+Once React Router adds more than one page, Vercel also needs a rewrite of all paths to
+`index.html` (a `vercel.json`), or a refresh on any page other than `/` returns 404.
+
 ## Adding shadcn components
 
 ```bash
