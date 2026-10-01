@@ -40,8 +40,24 @@ Until the backend is public (it runs on localhost until the Render keys arrive),
 cannot sign in: with no `VITE_API_URL`, its `/api` calls go to Vercel itself and get 404. Work
 locally with `npm run dev` against the local backend instead.
 
-Once React Router adds more than one page, Vercel also needs a rewrite of all paths to
-`index.html` (a `vercel.json`), or a refresh on any page other than `/` returns 404.
+`vercel.json` rewrites every path except built assets to `index.html`, so a refresh or a shared
+link on any page (`/purchase`) loads the app. Links from before the router (`/#/returns`) are
+redirected to their path on load.
+
+## Routing and navigation
+
+React Router, one route per module (`src/lib/nav.ts`): Overview, Orders, Confirmations, Parcels,
+Returns, Reconciliation, Inventory, Purchase, Partners, PR, Accounting, Reports, Settings. Each
+module lists the roles that may use it (the five roles of BUILD-PLAN Step 15); the navigation
+shows only those, and a module opened by address that the role may not use says so. The backend
+enforces access on every request regardless.
+
+- Each page is its own chunk, loaded on first visit (`npm run build` lists them); modules not
+  built yet share a titled placeholder.
+- Each route has its own error boundary: a page that throws, or whose code fails to load (a tab
+  left open across a deploy), shows the error in place while the navigation keeps working.
+- A sidebar on wide screens, a drawer behind the menu button below 1024px; checked at 375px with
+  no horizontal scroll. The tab title follows the route; unknown paths get a 404 page.
 
 ## Adding shadcn components
 
@@ -56,19 +72,24 @@ table, badge, input, separator, skeleton, tabs, dropdown-menu, sonner.
 
 ```
 src/
-  App.tsx                     sign-in gate and page switch
+  App.tsx                     sign-in gate; the router once signed in
+  router.tsx                  the routes: one lazy chunk, role check and error boundary each
   main.tsx                    entry point, toaster
   index.css                   Tailwind + shadcn theme + brand colours
   components/
-    app-shell.tsx             header, navigation, page frame
+    app-shell.tsx             sidebar, mobile drawer, header and page frame
+    require-role.tsx          a module's page, or a plain "not for your role"
+    route-error.tsx           the per-route error boundary
     integration-status.tsx    live connection status from the backend
     ui/                       shadcn components
   hooks/use-api.ts            small fetch hook
   lib/api.ts                  API client and shared types
   lib/format.ts               paisa → rupees (exact, no floats), queue item wording, Karachi
                               time for the desk (offsets from the time zone database)
-  lib/route.ts                hash routes (#/returns): no router dependency, no Vercel rewrite
+  lib/nav.ts                  the modules, their paths and the roles that may use each
   pages/overview.tsx          headline tiles and connections
+  pages/placeholder.tsx       a module whose screens are not built yet, titled
+  pages/not-found.tsx         404
   pages/confirmations.tsx     Confirmation Desk: the queue, one order with WhatsApp and call
                               links and the customer's history on both brands, outcomes and
                               follow-ups, agent performance, desk settings, and the two alerts
@@ -98,5 +119,5 @@ Every action on these pages is recorded by the backend in its audit log with the
 
 The build plan for the whole platform, frontend steps included, lives in the backend repository
 (`farazmahmood1/jubilant-octo-tribble-b`) at `docs/BUILD-PLAN.md`; section 3.1 has the week-by-week
-order. Next for this app: React Router and TanStack Query (they replace the hash routes and
-`useApi` once caching matters), then the orders and shipments pages for Release 1.
+order. Next for this app: TanStack Query (it replaces `useApi` once caching matters), then the
+orders and parcels pages for Release 1.

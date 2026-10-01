@@ -1,20 +1,19 @@
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { RouterProvider } from 'react-router';
 
 import { AuthProvider, useAuth } from '@/auth/auth-context';
-import { AppShell } from '@/components/app-shell';
-import { useRoute } from '@/lib/route';
-import { AccountingPage } from '@/pages/accounting';
-import { ConfirmationsPage } from '@/pages/confirmations';
-import { InfluencersPage } from '@/pages/influencers';
-import { InventoryPage } from '@/pages/inventory';
+import { legacyHashPath } from '@/lib/nav';
 import { LoginPage } from '@/pages/login';
-import { OverviewPage } from '@/pages/overview';
-import { ReconciliationPage } from '@/pages/reconciliation';
-import { ReturnsPage } from '@/pages/returns';
+import { createRouter } from '@/router';
+
+// Links from before the router (`/#/returns`) land on the page they meant.
+const legacy = legacyHashPath(window.location.hash);
+if (legacy) window.history.replaceState(null, '', legacy);
 
 function Routes() {
   const { user, restoring } = useAuth();
-  const page = useRoute();
+  const [router] = useState(createRouter);
 
   // Avoids a flash of the login page while the stored token is being checked.
   if (restoring) {
@@ -26,18 +25,7 @@ function Routes() {
   }
 
   if (!user) return <LoginPage />;
-
-  return (
-    <AppShell page={page}>
-      {page === 'overview' && <OverviewPage />}
-      {page === 'confirmations' && <ConfirmationsPage />}
-      {page === 'reconciliation' && <ReconciliationPage />}
-      {page === 'returns' && <ReturnsPage />}
-      {page === 'inventory' && <InventoryPage />}
-      {page === 'influencers' && <InfluencersPage />}
-      {page === 'accounting' && <AccountingPage />}
-    </AppShell>
-  );
+  return <RouterProvider router={router} />;
 }
 
 export default function App() {

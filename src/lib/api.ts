@@ -60,10 +60,13 @@ export const apiPatch = <T>(path: string, data: unknown): Promise<T> =>
 
 export const apiDelete = <T>(path: string): Promise<T> => request<T>(path, { method: 'DELETE' });
 
+/** The five roles of BUILD-PLAN Step 15. Sign-in issues `owner` until real accounts exist. */
+export type Role = 'owner' | 'manager' | 'operations' | 'agent' | 'accountant';
+
 export interface SessionUser {
   email: string;
   name: string;
-  role: 'owner';
+  role: Role;
 }
 
 export interface LoginResponse {
