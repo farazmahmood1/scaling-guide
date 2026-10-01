@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from '@/auth/auth-context';
 import { AppShell } from '@/components/app-shell';
 import { useRoute } from '@/lib/route';
 import { AccountingPage } from '@/pages/accounting';
+import { ConfirmationsPage } from '@/pages/confirmations';
+import { InfluencersPage } from '@/pages/influencers';
 import { InventoryPage } from '@/pages/inventory';
 import { LoginPage } from '@/pages/login';
 import { OverviewPage } from '@/pages/overview';
@@ -28,9 +30,11 @@ function Routes() {
   return (
     <AppShell page={page}>
       {page === 'overview' && <OverviewPage />}
+      {page === 'confirmations' && <ConfirmationsPage />}
       {page === 'reconciliation' && <ReconciliationPage />}
       {page === 'returns' && <ReturnsPage />}
       {page === 'inventory' && <InventoryPage />}
+      {page === 'influencers' && <InfluencersPage />}
       {page === 'accounting' && <AccountingPage />}
     </AppShell>
   );

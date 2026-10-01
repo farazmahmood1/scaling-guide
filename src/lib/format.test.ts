@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ReviewItem } from '@/lib/api';
-import { describeItem, formatPaisa, kindLabel, paisaToInput, parsePrefixes, parseRupees, percent } from '@/lib/format';
+import { describeItem, formatKarachiTime, formatPaisa, fromNow, karachiLocal, karachiToIso, kindLabel, paisaToInput, parsePrefixes, parseRupees, percent } from '@/lib/format';
 
 const item = (kind: string, detail: Record<string, unknown>): ReviewItem => ({
   id: '1',
@@ -92,5 +92,32 @@ describe('parseRupees', () => {
 
   it('round-trips with paisaToInput', () => {
     for (const paisa of ['0', '5', '150000', '-30000', '900719925474099312']) expect(parseRupees(paisaToInput(paisa))).toBe(paisa);
+  });
+});
+
+describe('Karachi time for the desk', () => {
+  it('reads and writes Karachi wall-clock time through the time zone database', () => {
+    expect(karachiLocal('2026-10-01T09:30:00Z')).toBe('2026-10-01T14:30');
+    expect(karachiToIso('2026-10-01T14:30')).toBe('2026-10-01T09:30:00.000Z');
+    // Late evening in Karachi is the same UTC day; just after midnight is the previous one.
+    expect(karachiToIso('2026-10-02T00:15')).toBe('2026-10-01T19:15:00.000Z');
+    expect(karachiToIso('2026-02-30T10:00')).toBeNull();
+    expect(karachiToIso('tomorrow')).toBeNull();
+  });
+
+  it('says how far away an instant is', () => {
+    const now = Date.parse('2026-10-01T09:00:00Z');
+    expect(fromNow('2026-10-01T09:40:00Z', now)).toBe('in 40 min');
+    expect(fromNow('2026-10-01T06:00:00Z', now)).toBe('3 h ago');
+    expect(fromNow('2026-09-28T09:00:00Z', now)).toBe('3 days ago');
+    expect(formatKarachiTime('2026-10-01T09:05:00Z')).toBe('1 Oct, 14:05');
+  });
+
+  it('describes the desk alerts', () => {
+    expect(describeItem(item('confirmed_not_booked', { orderNumber: '#12', hoursWaiting: 26 }))).toBe('#12 confirmed 26 hours ago and still not booked with PostEx');
+    expect(describeItem(item('cancelled_but_booked', { orderNumber: '#13', cancelledBy: 'desk', trackingNumbers: ['T1'] }))).toBe(
+      '#13 was cancelled at the desk, but parcel T1 is still out',
+    );
+    expect(kindLabel('confirmed_not_booked')).toBe('Confirmed, not booked');
   });
 });

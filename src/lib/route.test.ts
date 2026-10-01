@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { hrefFor, parseRoute } from '@/lib/route';
+import { PAGES, hrefFor, parseRoute } from '@/lib/route';
 
 describe('parseRoute', () => {
   it('reads the page from the hash, ignoring a trailing path or query', () => {
@@ -15,6 +15,7 @@ describe('parseRoute', () => {
   });
 
   it('round-trips with hrefFor', () => {
-    for (const page of ['overview', 'reconciliation', 'returns', 'inventory', 'accounting'] as const) expect(parseRoute(hrefFor(page))).toBe(page);
+    for (const page of PAGES) expect(parseRoute(hrefFor(page))).toBe(page);
+    expect(parseRoute('#/confirmations?state=unreachable')).toBe('confirmations');
   });
 });

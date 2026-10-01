@@ -7,9 +7,11 @@ import { type Page, hrefFor } from '@/lib/route';
 
 const NAV: ReadonlyArray<{ label: string; page?: Page }> = [
   { label: 'Overview', page: 'overview' },
+  { label: 'Confirmations', page: 'confirmations' },
   { label: 'Reconciliation', page: 'reconciliation' },
   { label: 'Returns', page: 'returns' },
   { label: 'Inventory', page: 'inventory' },
+  { label: 'Influencers', page: 'influencers' },
   { label: 'Accounting', page: 'accounting' },
   { label: 'Orders' },
   { label: 'Profit' },

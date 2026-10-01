@@ -65,13 +65,19 @@ src/
     ui/                       shadcn components
   hooks/use-api.ts            small fetch hook
   lib/api.ts                  API client and shared types
-  lib/format.ts               paisa → rupees (exact, no floats), queue item wording
+  lib/format.ts               paisa → rupees (exact, no floats), queue item wording, Karachi
+                              time for the desk (offsets from the time zone database)
   lib/route.ts                hash routes (#/returns): no router dependency, no Vercel rewrite
   pages/overview.tsx          headline tiles and connections
+  pages/confirmations.tsx     Confirmation Desk: the queue, one order with WhatsApp and call
+                              links and the customer's history on both brands, outcomes and
+                              follow-ups, agent performance, desk settings, and the two alerts
   pages/reconciliation.tsx    review queue: resolve, ignore, link a parcel to its order;
                               match rate and the order-number prefixes setting
   pages/returns.tsx           returns PostEx sent back that nobody has checked in; check-in
   pages/inventory.tsx         stock per product and location; counts and corrections
+  pages/influencers.tsx       influencers and their discount codes, codes nobody owns yet,
+                              and sales by influencer from the ledger
   pages/accounting.tsx        trial balance with each account's entries, month close,
                               opening balances (typed rupees parsed exactly to paisa)
 ```
@@ -93,4 +99,4 @@ Every action on these pages is recorded by the backend in its audit log with the
 The build plan for the whole platform, frontend steps included, lives in the backend repository
 (`farazmahmood1/jubilant-octo-tribble-b`) at `docs/BUILD-PLAN.md`; section 3.1 has the week-by-week
 order. Next for this app: React Router and TanStack Query (they replace the hash routes and
-`useApi` once caching matters), then the orders, shipments and confirmation pages for Release 1.
+`useApi` once caching matters), then the orders and shipments pages for Release 1.

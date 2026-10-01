@@ -55,6 +55,11 @@ export const apiPost = <T>(path: string, data: unknown): Promise<T> =>
 export const apiPut = <T>(path: string, data: unknown): Promise<T> =>
   request<T>(path, { method: 'PUT', body: JSON.stringify(data) });
 
+export const apiPatch = <T>(path: string, data: unknown): Promise<T> =>
+  request<T>(path, { method: 'PATCH', body: JSON.stringify(data) });
+
+export const apiDelete = <T>(path: string): Promise<T> => request<T>(path, { method: 'DELETE' });
+
 export interface SessionUser {
   email: string;
   name: string;
@@ -262,4 +267,147 @@ export interface StockComparisonRow {
   warehouse: number;
   difference: number;
   readAt: string;
+}
+
+// ---- Confirmation Desk ----
+
+export type ConfirmationState = 'pending' | 'confirmed' | 'no_answer' | 'changed' | 'cancelled' | 'unreachable';
+export type AttemptOutcome = 'confirmed' | 'changed' | 'cancelled' | 'no_answer' | 'callback' | 'wrong_number' | 'rescheduled';
+export type Channel = 'whatsapp' | 'call';
+
+export interface QueueRow {
+  orderId: string;
+  store: StoreKey;
+  orderNumber: string;
+  placedAt: string;
+  totalPaisa: string;
+  items: string;
+  customerName: string | null;
+  phone: string | null;
+  city: string | null;
+  state: ConfirmationState;
+  source: 'desk' | 'shopify_tags' | 'none';
+  attempts: number;
+  nextAttemptAt: string | null;
+  lastAttemptAt: string | null;
+  outcomeReason: string | null;
+  agent: string | null;
+  due: boolean;
+  history: { delivered: number; returned: number };
+  whatsappUrl: string | null;
+  callUrl: string | null;
+}
+
+export interface QueuePage {
+  total: number;
+  page: number;
+  pageSize: number;
+  rows: QueueRow[];
+}
+
+export interface DeskAttempt {
+  id: string;
+  at: string;
+  agent: string;
+  channel: Channel | null;
+  outcome: AttemptOutcome;
+  followUpAt: string | null;
+  reason: string | null;
+  note: string | null;
+}
+
+export interface DeskOrder {
+  orderId: string;
+  store: StoreKey;
+  orderNumber: string;
+  placedAt: string;
+  totalPaisa: string;
+  state: string | null;
+  cancelledInShopify: boolean;
+  booked: boolean;
+  customerName: string | null;
+  phone: string | null;
+  city: string | null;
+  lines: Array<{ title: string; sku: string | null; qty: number; totalPaisa: string }>;
+  confirmation: { state: ConfirmationState; source: string; attempts: number; nextAttemptAt: string | null; outcomeReason: string | null; confirmedAt: string | null } | null;
+  attempts: DeskAttempt[];
+  whatsappUrl: string | null;
+  callUrl: string | null;
+}
+
+export interface CustomerHistory {
+  phone: string;
+  orders: Array<{ orderId: string; store: StoreKey; orderNumber: string; placedAt: string; totalPaisa: string; state: string | null; channel: string; city: string | null }>;
+  counts: { orders: number; delivered: number; refused: number; cancelled: number; inFlight: number; awaiting: number };
+  deliveryRate: number | null;
+  city: { name: string; delivered: number; returned: number; returnRate: number | null } | null;
+}
+
+export interface AgentPerformance {
+  agentId: string;
+  name: string;
+  contacts: number;
+  ordersWorked: number;
+  confirmed: number;
+  changed: number;
+  cancelled: number;
+  noAnswer: number;
+  wrongNumber: number;
+  callbacks: number;
+  unreachable: number;
+  confirmationRate: number | null;
+  medianMinutesToFirstContact: number | null;
+  outcomes: { delivered: number; returned: number; returnRate: number | null };
+}
+
+export interface DeskAlert {
+  id: string;
+  kind: 'confirmed_not_booked' | 'cancelled_but_booked';
+  severity: 'info' | 'warning' | 'error';
+  orderId: string | null;
+  store: StoreKey | null;
+  detail: Record<string, unknown>;
+  openedAt: string;
+}
+
+export interface DeskSettings {
+  maxAttempts: number;
+  retryMinutes: number[];
+  deskHours: { open: string; close: string };
+  whatsappTemplates: { nur: string; organics: string };
+}
+
+// ---- Influencers and breakdowns ----
+
+export interface Influencer {
+  id: string;
+  handle: string;
+  name: string;
+  city: string | null;
+  followers: number | null;
+  niche: string | null;
+  notes: string | null;
+  isActive: boolean;
+  codes: Array<{ id: string; store: StoreKey; code: string; orders: number }>;
+}
+
+export interface UnassignedCode {
+  store: StoreKey;
+  code: string;
+  orders: number;
+  lastUsedAt: string;
+}
+
+/** One row of a Step 14 breakdown; amounts are paisa strings. */
+export interface BreakdownRow {
+  key: string;
+  label: string;
+  revenue: string;
+  goods: string;
+  postexCharges: string;
+  marketing: string;
+  writeOff: string;
+  otherExpenses: string;
+  profit: string;
+  parcels: number;
 }
