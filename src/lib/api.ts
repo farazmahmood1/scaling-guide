@@ -945,3 +945,33 @@ export interface ParcelDetail extends ParcelRow {
   } | null;
   openItems: Array<{ id: string; kind: string; severity: string; detail: Record<string, unknown> }>;
 }
+
+// ---- Orders ----
+
+export type OrderState = 'placed' | 'confirmed' | 'ready_to_book' | 'booked' | 'in_transit' | 'delivered' | 'failed' | 'returning' | 'returned_received' | 'cancelled' | 'pr';
+
+export interface OrderListRow {
+  id: string;
+  orderNumber: string;
+  store: StoreKey | null;
+  placedAt: string;
+  customerName: string | null;
+  /** Null for a role that may not see phone numbers. */
+  phone: string | null;
+  city: string | null;
+  totalPaisa: string;
+  state: OrderState | null;
+  financialStatus: string | null;
+  channel: 'online' | 'consignment' | 'pr';
+  items: number;
+  discountCodes: string[];
+  parcels: number;
+  parcel: { id: string; trackingNumber: string; stage: ParcelRow['stage'] } | null;
+}
+
+export interface OrderPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  rows: OrderListRow[];
+}

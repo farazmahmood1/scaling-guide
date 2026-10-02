@@ -8,15 +8,10 @@ import { Rethrow, RouteError } from '@/components/route-error';
 import { MODULES, type ModuleKey } from '@/lib/nav';
 import { NotFoundPage } from '@/pages/not-found';
 
-/**
- * Each module's page, loaded on first visit: `npm run build` emits one chunk per page. Modules not
- * built yet share the placeholder chunk, each with its own title.
- */
-const placeholder = (key: ModuleKey) => import('@/pages/placeholder').then(({ PlaceholderPage }) => <PlaceholderPage moduleKey={key} />);
-
+/** Each module's page, loaded on first visit: `npm run build` emits one chunk per page. */
 const PAGES: Record<ModuleKey, () => Promise<ReactElement>> = {
   overview: () => import('@/pages/overview').then(({ OverviewPage }) => <OverviewPage />),
-  orders: () => placeholder('orders'),
+  orders: () => import('@/pages/orders').then(({ OrdersPage }) => <OrdersPage />),
   parcels: () => import('@/pages/parcels').then(({ ParcelsPage }) => <ParcelsPage />),
   returns: () => import('@/pages/returns').then(({ ReturnsPage }) => <ReturnsPage />),
   reconciliation: () => import('@/pages/reconciliation').then(({ ReconciliationPage }) => <ReconciliationPage />),
