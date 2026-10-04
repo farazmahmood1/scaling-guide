@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ListSkeleton, TableSkeleton, num } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import { type PurchaseRequest, type ReorderSuggestion, type VariantHit, apiPost } from '@/lib/api';
 import { formatKarachiTime, formatPaisa } from '@/lib/format';
@@ -121,7 +121,7 @@ export function RequestsStep() {
           </label>
         </CardHeader>
         <CardContent>
-          {requests.loading && !requests.data && <Skeleton className="h-16 w-full" />}
+          {requests.loading && !requests.data && <ListSkeleton rows={3} trailing="badge-button" rowClassName="py-2.5" label="Loading the requests" />}
           {requests.error && !requests.data && <p className="text-sm text-brand-coral">Could not load requests: {requests.error}</p>}
           {requests.data && requests.data.requests.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No open requests.</p>}
           <ul className="divide-y">
@@ -166,7 +166,13 @@ export function RequestsStep() {
           <CardDescription>From units that reached customers, not orders placed: a parcel still out may come back. Covers the lead time and the cover period, less the shelf and what is already on order.</CardDescription>
         </CardHeader>
         <CardContent>
-          {suggestions.loading && !suggestions.data && <Skeleton className="h-16 w-full" />}
+          {suggestions.loading && !suggestions.data && (
+            <TableSkeleton
+              rows={4}
+              label="Loading the suggestions"
+              columns={['Product', num('Sold / day'), num('On shelf'), num('On order'), num('Cover'), num('Order'), 'Last vendor', { as: 'button', align: 'right' }]}
+            />
+          )}
           {suggestions.data && suggested.length === 0 && <p className="py-3 text-center text-sm text-muted-foreground">Nothing needs reordering at the current sales rate.</p>}
           {suggested.length > 0 && (
             <div className="overflow-x-auto rounded-lg border">

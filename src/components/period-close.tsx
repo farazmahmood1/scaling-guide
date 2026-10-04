@@ -6,6 +6,7 @@ import { useAuth } from '@/auth/auth-context';
 import { ClosedMark } from '@/components/closed-period';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Loading, SmallLine } from '@/components/skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePeriods } from '@/hooks/use-periods';
 import { type Period, apiPost } from '@/lib/api';
@@ -52,7 +53,22 @@ export function PeriodClose() {
           A month can be closed from the 5th of the next, and only after every earlier month with entries is closed. <strong>A closed month can never be reopened:</strong> nothing can be dated in it, and a correction is posted in the next open month.
         </p>
       </div>
-      {loading && !periods && <Skeleton className="h-32 w-full" />}
+      {loading && !periods && (
+        <Loading label="Loading the months" className="space-y-2">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <div className="flex items-center gap-3">
+                <Skeleton className="size-5 rounded-full" />
+                <div>
+                  <Skeleton className="my-0.5 h-5 w-32" />
+                  <SmallLine className="w-48" />
+                </div>
+              </div>
+              <Skeleton className="h-8 w-28" />
+            </div>
+          ))}
+        </Loading>
+      )}
       {error && !periods && <p role="alert" className="text-sm text-brand-coral">Could not load the months: {error}</p>}
       <ul className="space-y-2">
         {(periods ?? []).map((period) => {

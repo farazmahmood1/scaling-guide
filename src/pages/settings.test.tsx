@@ -17,7 +17,7 @@ const page = (url = '/settings') =>
 describe('the settings page', () => {
   it('has every section the task lists, as tabs', () => {
     const html = page();
-    for (const label of ['Connections', 'Alerts', 'Confirmation desk', 'Purchasing', 'Order tags', 'Month close']) expect(html).toContain(label);
+    for (const label of ['Connections', 'Alerts', 'Purchasing', 'Order tags', 'Month close']) expect(html).toContain(label);
   });
 
   it('opens on connections, or on the section named in the address', () => {

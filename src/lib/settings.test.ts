@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { decimalNumber, deskHoursError, parseRetryMinutes, parseTags, previewTemplate, rupeesToPaisaNumber, tagsToText, templateError, unknownPlaceholders, wholeNumber } from '@/lib/settings';
+import { decimalNumber, parseTags, rupeesToPaisaNumber, tagsToText, wholeNumber } from '@/lib/settings';
 
 describe('numbers typed into a form', () => {
   it('reads a whole number only inside its range', () => {
@@ -23,22 +23,6 @@ describe('numbers typed into a form', () => {
   });
 });
 
-describe('desk settings', () => {
-  it('reads retry gaps as one to five values between 5 minutes and a day', () => {
-    expect(parseRetryMinutes('60, 180')).toEqual([60, 180]);
-    expect(parseRetryMinutes('30 120 1440')).toEqual([30, 120, 1440]);
-    for (const bad of ['', '4', '1441', '60, x', '5,5,5,5,5,5', '1.5']) expect(parseRetryMinutes(bad), bad).toBeNull();
-  });
-
-  it('wants the desk to open before it closes, as HH:MM', () => {
-    expect(deskHoursError('10:00', '22:00')).toBeNull();
-    expect(deskHoursError('22:00', '10:00')).toBe('The desk must open before it closes');
-    expect(deskHoursError('10:00', '10:00')).toBe('The desk must open before it closes');
-    expect(deskHoursError('9:00', '22:00')).toBe('Give both times as HH:MM');
-    expect(deskHoursError('10:00', '24:00')).toBe('Give both times as HH:MM');
-  });
-});
-
 describe('Shopify tags', () => {
   it('splits on lines and commas, trims, and drops repeats', () => {
     expect(parseTags('Confirmed, confirmed\n Order Confirmed \n\nConfirmed').tags).toEqual(['Confirmed', 'confirmed', 'Order Confirmed']);
@@ -49,33 +33,5 @@ describe('Shopify tags', () => {
     expect(parseTags(Array.from({ length: 31 }, (_, i) => `t${i}`).join(',')).error).toBe('At most 30 tags');
     expect(parseTags('x'.repeat(81)).error).toContain('longer than 80');
     expect(parseTags('ok').error).toBeNull();
-  });
-});
-
-describe('WhatsApp templates', () => {
-  const GOOD = 'Assalam o Alaikum {firstName}! Your order {orderNumber} from {store}: {items}. Total {total}, COD to {city}.';
-
-  it('knows which placeholders it fills', () => {
-    expect(unknownPlaceholders(GOOD)).toEqual([]);
-    expect(unknownPlaceholders('Hi {firstname} {orderNumber} {phone} {phone}')).toEqual(['firstname', 'phone']);
-  });
-
-  it('shows the message with made-up values, leaving an unknown placeholder as typed', () => {
-    expect(previewTemplate(GOOD)).toBe('Assalam o Alaikum Sample! Your order #1042 from NUR by Juggun: 2 × Sample product. Total Rs 2,750, COD to Sampletown.');
-    expect(previewTemplate('Hi {nickname}, {name}')).toBe('Hi {nickname}, Sample Customer');
-  });
-
-  it('says why a template cannot be saved, the same reasons the server gives', () => {
-    expect(templateError(GOOD)).toBeNull();
-    expect(templateError('   ')).toBe('The message cannot be empty');
-    expect(templateError('x'.repeat(1001))).toBe('At most 1000 characters');
-    expect(templateError('Hi {phone} {email}')).toBe('Unknown placeholders: {phone}, {email}');
-    expect(templateError('Hi {phone}')).toBe('Unknown placeholder: {phone}');
-  });
-
-  it('never puts a real customer detail in the preview', () => {
-    const out = previewTemplate('{name} {firstName} {city} {total} {items} {orderNumber} {store}');
-    expect(out).not.toMatch(/\+92|03\d{9}/);
-    expect(out).toContain('Sample');
   });
 });

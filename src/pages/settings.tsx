@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { useAuth } from '@/auth/auth-context';
 import { IntegrationStatus } from '@/components/integration-status';
 import { PeriodClose } from '@/components/period-close';
-import { AlertsForm, DeskForm, PurchasingForm, TagsForm } from '@/components/settings-forms';
+import { AlertsForm, PurchasingForm, TagsForm } from '@/components/settings-forms';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UsersAdmin } from '@/components/users-admin';
@@ -11,7 +11,6 @@ import { UsersAdmin } from '@/components/users-admin';
 const SECTIONS = [
   { key: 'connections', label: 'Connections' },
   { key: 'alerts', label: 'Alerts' },
-  { key: 'desk', label: 'Confirmation desk' },
   { key: 'purchasing', label: 'Purchasing' },
   { key: 'tags', label: 'Order tags' },
   { key: 'close', label: 'Month close' },
@@ -39,7 +38,7 @@ export function SettingsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Connections, when alerts are raised, the confirmation desk and its WhatsApp message, reorder levels, and month close. Parcel matching prefixes are in{' '}
+          Connections, when alerts are raised, reorder levels, and month close. Parcel matching prefixes are in{' '}
           <Link className="underline underline-offset-2" to="/reconciliation">
             Reconciliation
           </Link>
@@ -75,17 +74,6 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent>
               <AlertsForm />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="desk" className="mt-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Confirmation desk</CardTitle>
-              <CardDescription>How agents chase an order, their hours, and the WhatsApp message each brand sends.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DeskForm />
             </CardContent>
           </Card>
         </TabsContent>

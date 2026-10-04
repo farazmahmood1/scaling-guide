@@ -5,7 +5,7 @@ import { JournalLines } from '@/components/journal-lines';
 import { Pager } from '@/components/pager';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { type SkeletonColumn, TableSkeleton, num } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import type { DrillSpec, InvoiceRow, PagedRows, PaymentRow, VendorBill } from '@/lib/api';
 import { formatPaisa } from '@/lib/format';
@@ -31,9 +31,9 @@ function EntriesButton({ onClick, label }: { onClick: () => void; label: string 
   );
 }
 
-function State({ error, loading, hasData, empty }: { error?: string; loading: boolean; hasData: boolean; empty: string | null }) {
+function State({ error, loading, hasData, empty, columns }: { error?: string; loading: boolean; hasData: boolean; empty: string | null; /** The table's columns, for its shape while it loads. */ columns: ReadonlyArray<string | SkeletonColumn> }) {
   if (error && !hasData) return <p role="alert" className="text-sm text-brand-coral">Could not load: {error}</p>;
-  if (loading && !hasData) return <Skeleton className="h-24 w-full" />;
+  if (loading && !hasData) return <TableSkeleton rows={6} columns={columns} />;
   return empty ? <p className="py-6 text-center text-sm text-muted-foreground">{empty}</p> : null;
 }
 
@@ -43,7 +43,7 @@ export function InvoicesView({ closed, onOpen }: Props) {
   const { data, error, loading } = useApi<PagedRows<InvoiceRow>>(`/api/v1/accounting/invoices?page=${page}&size=${PAGE}`);
   return (
     <div>
-      <State error={error} loading={loading} hasData={!!data} empty={data && data.rows.length === 0 ? 'No invoices yet. They are made when a partner\'s sales sheet is imported.' : null} />
+      <State columns={['Invoice', 'Partner', 'Issued', num('Total'), { as: 'button', align: 'right' }]} error={error} loading={loading} hasData={!!data} empty={data && data.rows.length === 0 ? 'No invoices yet. They are made when a partner\'s sales sheet is imported.' : null} />
       {data && data.rows.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
@@ -92,7 +92,7 @@ export function BillsView({ closed, onOpen }: Props) {
   const shown = bills.slice((page - 1) * PAGE, page * PAGE);
   return (
     <div>
-      <State error={error} loading={loading} hasData={!!data} empty={data && bills.length === 0 ? 'No vendor bills yet.' : null} />
+      <State columns={['Bill', 'Vendor', 'Dated', num('Total'), num('Owed'), { as: 'button', align: 'right' }]} error={error} loading={loading} hasData={!!data} empty={data && bills.length === 0 ? 'No vendor bills yet.' : null} />
       {shown.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
@@ -162,7 +162,7 @@ export function PaymentsView({ closed, onOpen }: Props) {
           </button>
         ))}
       </div>
-      <State error={error} loading={loading} hasData={!!data} empty={data && data.rows.length === 0 ? 'No payments.' : null} />
+      <State columns={['Date', 'Who', 'For', num('Amount'), { as: 'button', align: 'right' }]} error={error} loading={loading} hasData={!!data} empty={data && data.rows.length === 0 ? 'No payments.' : null} />
       {data && data.rows.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">

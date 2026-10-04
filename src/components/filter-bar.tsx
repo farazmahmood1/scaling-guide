@@ -1,16 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Search, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { karachiLocal } from '@/lib/format';
 import type { ListQuery } from '@/lib/list-query';
 
@@ -47,6 +41,9 @@ const presets = (): Array<{ label: string; from: string; to: string }> => {
   ];
 };
 
+/** A list longer than this gets a search box: nobody scrolls two hundred cities. */
+const SEARCHABLE_FROM = 8;
+
 function MultiSelect({ filter, selected, onChange }: { filter: MultiFilter; selected: string[]; onChange: (values: string[]) => void }) {
   const summary =
     selected.length === 0
@@ -54,33 +51,69 @@ function MultiSelect({ filter, selected, onChange }: { filter: MultiFilter; sele
       : selected.length === 1
         ? (filter.options.find((o) => o.value === selected[0])?.label ?? selected[0])
         : `${selected.length} selected`;
+  const [find, setFind] = useState('');
+  const searchable = filter.options.length > SEARCHABLE_FROM;
+  const needle = find.trim().toLowerCase();
+  const shown = needle ? filter.options.filter((o) => o.label.toLowerCase().includes(needle)) : filter.options;
+
+  // Up and Down walk the search box, the options and Clear, as they would a menu.
+  const step = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const stops = [...e.currentTarget.querySelectorAll<HTMLElement>('input, button')];
+    const next = stops[stops.indexOf(document.activeElement as HTMLElement) + (e.key === 'ArrowDown' ? 1 : -1)];
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Popover onOpenChange={(open) => !open && setFind('')}>
+      <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-9" aria-label={`${filter.label}: ${summary}`}>
           <span className="text-muted-foreground">{filter.label}:</span> {summary}
           <ChevronDown className="size-3.5 opacity-60" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {filter.options.map((o) => (
-          <DropdownMenuCheckboxItem
-            key={o.value}
-            checked={selected.includes(o.value)}
-            onSelect={(e) => e.preventDefault()}
-            onCheckedChange={(on) => onChange(on ? [...selected, o.value] : selected.filter((v) => v !== o.value))}
-          >
-            {o.label}
-          </DropdownMenuCheckboxItem>
-        ))}
+      </PopoverTrigger>
+      <PopoverContent className="w-max max-w-72 min-w-(--radix-popover-trigger-width)" onKeyDown={step}>
+        {searchable && (
+          <div className="relative mb-1">
+            <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input aria-label={`Search ${filter.label.toLowerCase()}`} className="h-8 min-w-48 pl-7" placeholder="Search" value={find} onChange={(e) => setFind(e.target.value)} />
+          </div>
+        )}
+        <div role="listbox" aria-label={filter.label} aria-multiselectable className="max-h-64 overflow-y-auto">
+          {shown.map((o) => {
+            const on = selected.includes(o.value);
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={on}
+                className="relative flex w-full cursor-default items-center rounded-md py-1 pr-8 pl-1.5 text-left text-sm outline-hidden select-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+                onClick={() => onChange(on ? selected.filter((v) => v !== o.value) : [...selected, o.value])}
+              >
+                {o.label}
+                {on && <Check className="pointer-events-none absolute right-2 size-4" />}
+              </button>
+            );
+          })}
+          {shown.length === 0 && <p className="px-1.5 py-1 text-muted-foreground">Nothing matches.</p>}
+        </div>
         {selected.length > 0 && (
           <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onChange([])}>Clear</DropdownMenuItem>
+            <div className="-mx-1 my-1 h-px bg-border" />
+            <button
+              type="button"
+              className="flex w-full cursor-default items-center rounded-md px-1.5 py-1 text-sm outline-hidden select-none hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground"
+              onClick={() => onChange([])}
+            >
+              Clear
+            </button>
           </>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   );
 }
 

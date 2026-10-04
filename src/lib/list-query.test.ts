@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { toCsv } from '@/lib/csv';
-import { type QuerySpec, applyChange, defaultQuery, nextSort, parseQuery, toParams } from '@/lib/list-query';
+import { type QuerySpec, applyChange, defaultQuery, nextSort, parseQuery, toParams, withSavedColumns } from '@/lib/list-query';
 
 const spec: QuerySpec = {
   multi: { status: ['pending', 'confirmed', 'delivered'], store: ['nur', 'organics'] },
@@ -11,6 +11,21 @@ const spec: QuerySpec = {
   defaultPageSize: 25,
   columnKeys: ['order', 'city', 'total'],
 };
+
+describe('saved columns', () => {
+  const at = (url: string) => new URLSearchParams(url);
+  const view = (url: string, saved: string[] | undefined) => withSavedColumns(parseQuery(at(url), spec), at(url), spec, saved).hidden;
+
+  it('opens a list with the columns the person saved, dropping ones the list no longer has', () => {
+    expect(view('', ['city', 'gone'])).toEqual(['city']);
+    expect(view('status=pending', [])).toEqual([]);
+  });
+
+  it('shows the defaults until anything is saved, and a shared link as it says', () => {
+    expect(view('', undefined)).toEqual([]);
+    expect(view('hide=total', ['city'])).toEqual(['total']);
+  });
+});
 
 describe('list query in the URL', () => {
   it('round-trips every part of a filtered view', () => {

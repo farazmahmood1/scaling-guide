@@ -1,7 +1,9 @@
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
+import { forgetSavedColumns } from '@/hooks/use-saved-columns';
 import { describeAccessChange, sameAccess } from '@/lib/access';
+import { queryClient } from '@/lib/query-client';
 import {
   FORBIDDEN_EVENT,
   UNAUTHORIZED_EVENT,
@@ -84,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Any request rejected with 401 ends the session here too.
   useEffect(() => {
     const onUnauthorized = () => {
+      queryClient.clear();
       latest.current = undefined;
       setMe(undefined);
     };
@@ -113,6 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string, code?: string) => {
     const data = await apiPost<LoginResponse>('/api/v1/auth/login', { email, password, ...(code ? { code } : {}) });
     setToken(data.token);
+    forgetSavedColumns();
+    queryClient.clear();
     const next = await apiGet<MeResponse>('/api/v1/auth/me');
     latest.current = next;
     setMe(next);
@@ -121,6 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     setToken(null);
+    forgetSavedColumns();
+    // What one account was shown is never drawn from the cache for the next.
+    queryClient.clear();
     latest.current = undefined;
     setMe(undefined);
   }, []);

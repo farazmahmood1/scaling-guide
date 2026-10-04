@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 
 import { PlaceChip } from '@/components/stock-table';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton, num } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import { type StockMovePage, apiGet } from '@/lib/api';
 import { formatKarachiFull } from '@/lib/format';
@@ -40,7 +40,7 @@ export function MoveHistory({ variantId, title }: { variantId: string; title: st
         <p className="text-sm text-muted-foreground">{title}</p>
       </header>
       <div className="px-4 py-3">
-        {first.loading && !first.data && <Skeleton className="h-24 w-full" />}
+        {first.loading && !first.data && <TableSkeleton variant="plain" rows={4} label="Loading the history" columns={['When (Karachi)', num('Units'), { header: 'From → to', as: 'control' }, 'Why', 'By']} />}
         {first.error && !first.data && (
           <p role="alert" className="text-sm text-brand-coral">
             Could not load the history: {first.error}

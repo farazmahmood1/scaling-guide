@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 
 import { Definition } from '@/components/dashboard-ui';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Line, ListSkeleton } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import type { AwaitingReturn, StoreKey } from '@/lib/api';
 import { DEFINITIONS } from '@/lib/dashboard';
@@ -21,15 +21,22 @@ export function AlertSummary({ store }: { store: StoreKey | null }) {
 
   return (
     <Card className="gap-3 py-4" data-testid="alert-summary">
-      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 px-4 pb-0">
+      <CardHeader className="flex flex-wrap items-center justify-between gap-2 space-y-0 px-4 pb-0">
         <div className="flex items-center gap-1">
           <h3 className="font-semibold">Needs attention</h3>
           <Definition term="Needs attention">{DEFINITIONS.alerts}</Definition>
         </div>
         <p className="text-xs text-muted-foreground">Right now{store ? `, ${store === 'nur' ? 'NUR by Juggun' : "Juggun's Organics"}` : ', both brands'}</p>
       </CardHeader>
-      <CardContent className="px-4">
-        {loading && <Skeleton className="h-24 w-full" />}
+      <CardContent className="min-h-0 flex-1 overflow-auto px-4">
+        {loading && (
+          <>
+            <div aria-hidden>
+              <Line className="mb-1.5 w-32" />
+            </div>
+            <ListSkeleton rows={4} lines={1} icon trailing="number" rowClassName="py-2.5" label="Loading what needs attention" />
+          </>
+        )}
         {failed.length > 0 && (
           <p role="alert" className="mb-2 text-sm text-brand-coral">
             Could not load {failed.join(' or ')}. What is shown may be incomplete.

@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ListSkeleton } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import { type VendorBill, apiPost } from '@/lib/api';
 import { formatPaisa, paisaToInput, parseRupees } from '@/lib/format';
@@ -86,7 +86,7 @@ export function BillsList({ reloadKey, onChanged, onOpenOrder }: { reloadKey: nu
         <input type="checkbox" checked={unpaidOnly} onChange={(e) => setUnpaidOnly(e.target.checked)} />
         Only bills still owed
       </label>
-      {loading && !data && <Skeleton className="h-16 w-full" />}
+      {loading && !data && <ListSkeleton rows={3} trailing="badge-button" label="Loading the bills" />}
       {error && !data && <p className="text-sm text-brand-coral">Could not load bills: {error}</p>}
       {data && bills.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">{unpaidOnly ? 'No bills are owed.' : 'No bills yet.'}</p>}
       <ul className="divide-y">

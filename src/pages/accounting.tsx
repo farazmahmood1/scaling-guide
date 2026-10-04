@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { FactsSkeleton, Loading } from '@/components/skeletons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useApi } from '@/hooks/use-api';
 import { usePeriods } from '@/hooks/use-periods';
@@ -157,7 +157,11 @@ function InventoryCheckCard() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <Input type="date" className="w-44" value={asAt} onChange={(e) => setAsAt(e.target.value)} aria-label="As at" />
-        {loading && !data && <Skeleton className="h-16 w-full" />}
+        {loading && !data && (
+          <Loading label="Loading the inventory check">
+            <FactsSkeleton rows={3} rowClassName="py-0.5" divided={false} />
+          </Loading>
+        )}
         {error && <p className="text-brand-coral">{error}</p>}
         {data && (
           <>

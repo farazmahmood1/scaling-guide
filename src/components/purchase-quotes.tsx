@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton, num } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import { type QuoteComparison, type StoreKey, type Vendor, type VariantHit, apiPost } from '@/lib/api';
 import { formatPaisa, parseRupees } from '@/lib/format';
@@ -178,7 +178,7 @@ function QuoteTable({ variantId, onOrdered }: { variantId: string; onOrdered: (p
           <option value="organics">Juggun's Organics</option>
         </select>
       </label>
-      {quotes.loading && !quotes.data && <Skeleton className="h-12 w-full" />}
+      {quotes.loading && !quotes.data && <TableSkeleton variant="plain" rows={3} label="Loading the quotes" columns={['Vendor', num('Unit price'), num('Units'), 'Received', { as: 'button', align: 'right' }]} />}
       {quotes.error && !quotes.data && <p className="text-sm text-brand-coral">Could not load quotes: {quotes.error}</p>}
       {quotes.data && list.length === 0 && <p className="text-sm text-muted-foreground">No quotes for this product yet.</p>}
       {list.length > 0 && (

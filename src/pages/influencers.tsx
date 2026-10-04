@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Plus, RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useBrand } from '@/brand/brand-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton, num } from '@/components/skeletons';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useApi } from '@/hooks/use-api';
 import { type BreakdownRow, type Influencer, type StoreKey, type UnassignedCode, apiDelete, apiPatch, apiPost } from '@/lib/api';
@@ -21,7 +22,7 @@ const failed = (cause: unknown, fallback: string) => toast.error(cause instanceo
 function PerformanceCard({ version }: { version: number }) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [store, setStore] = useState<'' | StoreKey>('');
+  const { brand: store } = useBrand();
   const query = new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}), ...(store ? { store } : {}), v: String(version) }).toString();
   const { data, error, loading } = useApi<{ rows: BreakdownRow[] }>(`/api/v1/reports/breakdowns/influencer?${query}`);
   return (
@@ -35,15 +36,10 @@ function PerformanceCard({ version }: { version: number }) {
           <input type="date" className={selectClass} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From" />
           <span className="text-muted-foreground">to</span>
           <input type="date" className={selectClass} value={to} onChange={(e) => setTo(e.target.value)} aria-label="To" />
-          <select className={selectClass} value={store} onChange={(e) => setStore(e.target.value as '' | StoreKey)} aria-label="Brand">
-            <option value="">Both brands</option>
-            <option value="nur">NUR by Juggun</option>
-            <option value="organics">Juggun&apos;s Organics</option>
-          </select>
         </div>
       </CardHeader>
       <CardContent>
-        {loading && !data && <Skeleton className="h-24 w-full" />}
+        {loading && !data && <TableSkeleton variant="ui" label="Loading the influencers' results" columns={['Influencer', num('Parcels'), num('Revenue'), num('Goods'), num('PostEx'), num('Profit')]} />}
         {error && <p className="text-sm text-brand-coral">{error}</p>}
         {data && data.rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nothing posted in this period.</p>}
         {data && data.rows.length > 0 && (
@@ -220,7 +216,13 @@ export function InfluencersPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <NewInfluencer onDone={refresh} />
-            {list.loading && !list.data && <Skeleton className="h-24 w-full" />}
+            {list.loading && !list.data && (
+              <TableSkeleton
+                variant="ui"
+                label="Loading the influencers"
+                columns={[{ header: 'Influencer', sub: true }, 'City', num('Followers'), { header: 'Codes', as: 'badge' }, { header: 'Add a code', as: 'control' }, { header: 'Active', align: 'right', as: 'badge' }]}
+              />
+            )}
             {list.error && <p className="text-sm text-brand-coral">{list.error}</p>}
             {influencers.length > 0 && (
               <div className="overflow-x-auto">
@@ -278,7 +280,7 @@ export function InfluencersPage() {
             <CardDescription>Most used first. Assign an influencer's code here; a sitewide code can stay unassigned.</CardDescription>
           </CardHeader>
           <CardContent>
-            {unassigned.loading && !unassigned.data && <Skeleton className="h-16 w-full" />}
+            {unassigned.loading && !unassigned.data && <TableSkeleton variant="ui" rows={4} label="Loading the codes" columns={['Code', 'Brand', num('Orders'), 'Last used', { header: 'Assign to', as: 'control' }]} />}
             {unassigned.data && unassigned.data.codes.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Every code used at checkout has an owner.</p>}
             {unassigned.data && unassigned.data.codes.length > 0 && (
               <div className="max-h-96 overflow-auto">

@@ -1,10 +1,10 @@
 import type { ReactElement } from 'react';
-import { Loader2 } from 'lucide-react';
 import { type RouteObject, createBrowserRouter } from 'react-router';
 
 import { AppShell } from '@/components/app-shell';
 import { RequireRole } from '@/components/require-role';
 import { Rethrow, RouteError } from '@/components/route-error';
+import { AppSkeleton } from '@/components/skeletons';
 import { MODULES, type ModuleKey } from '@/lib/nav';
 import { NotFoundPage } from '@/pages/not-found';
 
@@ -30,11 +30,7 @@ export const routes: RouteObject[] = [
     element: <AppShell />,
     errorElement: <RouteError />,
     // The first page's code is still loading when the app starts.
-    hydrateFallbackElement: (
-      <div className="flex min-h-screen items-center justify-center" role="status" aria-label="Loading">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    ),
+    hydrateFallbackElement: <AppSkeleton />,
     children: [
       ...MODULES.map(
         (m): RouteObject => ({
@@ -59,6 +55,18 @@ export const routes: RouteObject[] = [
         lazy: async () => {
           try {
             return { element: <RequireRole moduleKey="parcels">{await import('@/pages/parcel-detail').then(({ ParcelDetailPage }) => <ParcelDetailPage />)}</RequireRole> };
+          } catch (error) {
+            return { element: <Rethrow error={error} /> };
+          }
+        },
+      },
+      // One order: part of the Orders module, so it takes that module's role gate and title.
+      {
+        path: 'orders/:id',
+        errorElement: <RouteError />,
+        lazy: async () => {
+          try {
+            return { element: <RequireRole moduleKey="orders">{await import('@/pages/order-detail').then(({ OrderDetailPage }) => <OrderDetailPage />)}</RequireRole> };
           } catch (error) {
             return { element: <Rethrow error={error} /> };
           }

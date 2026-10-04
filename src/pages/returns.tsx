@@ -3,8 +3,9 @@ import { PackageCheck, PackageX } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 
 import { useAuth } from '@/auth/auth-context';
+import { useBrand } from '@/brand/brand-context';
 import { type Column, DataTable } from '@/components/data-table';
-import { FilterBar, type MultiFilter } from '@/components/filter-bar';
+import { FilterBar } from '@/components/filter-bar';
 import { ReturnsAlert } from '@/components/returns-alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,13 +21,14 @@ import type { ListQuery, QuerySpec } from '@/lib/list-query';
 import { codCsv, orderLabel, storeLabel } from '@/lib/parcels';
 
 const SPEC: QuerySpec = {
-  multi: { store: ['nur', 'organics'], city: null },
+  multi: { city: null },
   sortKeys: ['statusUpdatedAt', 'cod'],
   // Oldest first: the parcel that has waited longest is the one to check in next.
   defaultSort: { key: 'statusUpdatedAt', dir: 'asc' },
   pageSizes: [25, 50, 100],
   defaultPageSize: 25,
   columnKeys: ['tracking', 'order', 'store', 'city', 'cod', 'statusUpdatedAt', 'checkIn'],
+  screen: 'returns',
 };
 
 type View = 'waiting' | 'done' | 'all';
@@ -58,7 +60,8 @@ export function ReturnsPage() {
   const view: View = params.get('view') === 'done' ? 'done' : params.get('view') === 'all' ? 'all' : 'waiting';
   const effective = useMemo(() => registerQuery(query, view), [query, view]);
   const list = useParcelList(effective);
-  const awaiting = useApi<{ returns: AwaitingReturn[] }>('/api/v1/stock/returns-awaiting');
+  const { brand } = useBrand();
+  const awaiting = useApi<{ returns: AwaitingReturn[] }>(`/api/v1/stock/returns-awaiting${brand ? `?store=${brand}` : ''}`);
   const navigate = useNavigate();
 
   const reloadList = list.reload;
@@ -125,9 +128,6 @@ export function ReturnsPage() {
     [pending.inFlight, checkIn, canCheckIn],
   );
 
-  const filters: MultiFilter[] = [
-    { key: 'store', label: 'Store', options: [{ value: 'nur', label: 'NUR by Juggun' }, { value: 'organics', label: "Juggun's Organics" }] },
-  ];
 
   return (
     <>
@@ -152,7 +152,7 @@ export function ReturnsPage() {
               </button>
             ))}
           </div>
-          <FilterBar query={query} onChange={setQuery} multi={filters} dateLabel="Booked" searchPlaceholder="Scan or type a tracking number" />
+          <FilterBar query={query} onChange={setQuery} dateLabel="Booked" searchPlaceholder="Scan or type a tracking number" />
         </CardHeader>
         <CardContent>
           <DataTable

@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { type Closed, ReviewItemCard } from '@/components/review-item';
 import { Button } from '@/components/ui/button';
+import { Line, Loading, SmallLine } from '@/components/skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/use-api';
 import { type ItemStatus, type ReviewItemPage, apiGet } from '@/lib/api';
@@ -48,7 +49,28 @@ export function ReviewGroup({ kind, status, count, onClosed, canAct = true }: { 
         </header>
       )}
       <div className="px-4">
-        {first.loading && !first.data && <Skeleton className="my-4 h-24 w-full" />}
+        {first.loading && !first.data && (
+          <Loading label="Loading these items">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="flex flex-wrap items-start justify-between gap-3 border-b py-4 last:border-b-0">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                    <SmallLine className="w-24" />
+                    <SmallLine className="w-28" />
+                  </div>
+                  <Line className={['w-96', 'w-80', 'w-[26rem]'][i]} />
+                  <SmallLine className="w-44" />
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-8 w-20" />
+                  <Skeleton className="h-8 w-20" />
+                </div>
+              </div>
+            ))}
+          </Loading>
+        )}
         {first.error && !first.data && (
           <div className="py-4">
             <p role="alert" className="text-sm text-brand-coral">

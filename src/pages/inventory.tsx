@@ -3,12 +3,13 @@ import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/auth-context';
+import { useBrand } from '@/brand/brand-context';
 import { MoveHistory } from '@/components/move-history';
-import { StockTable, StockTotals } from '@/components/stock-table';
+import { StockTable, StockTableSkeleton, StockTotals } from '@/components/stock-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton, num } from '@/components/skeletons';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useApi } from '@/hooks/use-api';
 import { type Quant, type StockComparisonRow, type StockLocation, type VariantHit, apiGet, apiPost } from '@/lib/api';
@@ -215,7 +216,14 @@ function ShopifyStockCard({ onDone }: { onDone: () => void }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {loading && !data && <Skeleton className="h-24 w-full" />}
+        {loading && !data && (
+          <TableSkeleton
+            variant="ui"
+            rows={6}
+            label="Loading Shopify's stock"
+            columns={['Product', num('On hand'), num('Committed'), num('…not booked'), num('Available'), num('Shelf estimate'), num('Our warehouse'), num('Difference')]}
+          />
+        )}
         {error && <p className="text-sm text-brand-coral">Could not load Shopify's stock: {error}</p>}
         {data && rows.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No stock read from Shopify yet: it arrives with the hourly catalogue sync.</p>}
         {rows.length > 0 && (
@@ -290,7 +298,7 @@ function ShopifyStockCard({ onDone }: { onDone: () => void }) {
  */
 export function InventoryPage() {
   const { can } = useAuth();
-  const [store, setStore] = useState<'' | 'nur' | 'organics'>('');
+  const { brand: store } = useBrand();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const query = new URLSearchParams({ ...(store ? { store } : {}), ...(search.trim() ? { search: search.trim() } : {}) });
@@ -319,16 +327,11 @@ export function InventoryPage() {
           <CardHeader className="space-y-3">
             <StockTotals rows={rows} />
             <div className="flex flex-wrap items-center gap-2">
-              <select className={selectClass} value={store} onChange={(e) => setStore(e.target.value as typeof store)} aria-label="Store">
-                <option value="">Both stores</option>
-                <option value="nur">NUR by Juggun</option>
-                <option value="organics">Juggun's Organics</option>
-              </select>
               <Input className="w-full sm:w-64" placeholder="Search SKU or product" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </CardHeader>
           <CardContent>
-            {quants.loading && !quants.data && <Skeleton className="h-24 w-full" />}
+            {quants.loading && !quants.data && <StockTableSkeleton />}
             {quants.error && <p className="text-sm text-brand-coral">Could not load stock: {quants.error}</p>}
             {quants.data && rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No stock recorded for this view.</p>}
             {rows.length > 0 && <StockTable rows={rows} selected={selected} onSelect={(id) => setSelected(selected === id ? null : id)} />}

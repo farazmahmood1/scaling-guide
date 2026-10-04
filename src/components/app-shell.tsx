@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { LogOut, Menu, X } from 'lucide-react';
+import { ChevronDown, LogOut, Menu, X } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigation } from 'react-router';
 
 import { useAuth } from '@/auth/auth-context';
+import { BrandProvider, useBrand } from '@/brand/brand-context';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { BRAND_OPTIONS, brandLabel, parseBrand } from '@/lib/brand';
 import { type Module, moduleForPath, titleForPath, visibleModules } from '@/lib/nav';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -33,6 +36,38 @@ function Navigation({ modules, onNavigate }: { modules: Module[]; onNavigate?: (
         </div>
       ))}
     </nav>
+  );
+}
+
+/** The brand every screen is narrowed to: one choice for the whole app, so one screen's figures match the next's. */
+function BrandPicker() {
+  const { brand, setBrand } = useBrand();
+  const label = brandLabel(brand);
+  return (
+    <div>
+      <div className="px-3 pb-1 text-[11px] font-medium tracking-wide text-white/40 uppercase">Brand</div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Brand: ${label}`}
+            className="flex w-full items-center justify-between gap-2 rounded-md border border-white/15 bg-white/5 px-3 py-2 text-left text-sm font-medium text-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none"
+          >
+            <span className="truncate">{label}</span>
+            <ChevronDown className="size-3.5 shrink-0 opacity-60" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuRadioGroup value={brand ?? 'both'} onValueChange={(key) => setBrand(parseBrand(key))}>
+            {BRAND_OPTIONS.map((o) => (
+              <DropdownMenuRadioItem key={o.key} value={o.key}>
+                {o.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -66,6 +101,7 @@ function Drawer({ open, onClose, modules }: { open: boolean; onClose: () => void
             <X className="size-4" />
           </Button>
         </div>
+        <BrandPicker />
         <Navigation modules={modules} onNavigate={onClose} />
       </div>
     </div>
@@ -75,9 +111,17 @@ function Drawer({ open, onClose, modules }: { open: boolean; onClose: () => void
 /**
  * The frame every signed-in page renders in: a sidebar on wide screens, a drawer behind the menu
  * button on narrow ones, and the current module's page in the middle. The tab title follows the
- * route.
+ * route. The brand chosen in the sidebar narrows every page inside it.
  */
 export function AppShell() {
+  return (
+    <BrandProvider>
+      <Shell />
+    </BrandProvider>
+  );
+}
+
+function Shell() {
   const { user, roleLabel, permissions, signOut } = useAuth();
   const { pathname } = useLocation();
   const [drawer, setDrawer] = useState(false);
@@ -96,6 +140,7 @@ export function AppShell() {
       <aside className="hidden w-60 shrink-0 bg-brand-navy lg:block">
         <div className="sticky top-0 flex h-screen flex-col gap-6 overflow-y-auto p-4">
           <Brand />
+          <BrandPicker />
           <Navigation modules={modules} />
         </div>
       </aside>

@@ -2,7 +2,9 @@ import { useMemo } from 'react';
 import { ArrowLeft, PackageCheck, PackageX } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 
+import { Fact } from '@/components/fact';
 import { ParcelTimeline } from '@/components/parcel-timeline';
+import { FactsSkeleton, Line, Loading, SmallLine } from '@/components/skeletons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,12 +29,53 @@ const chargeLabel = (kind: string): string => CHARGE_LABELS[kind] ?? kind.replac
 const sumPaisa = (amounts: readonly string[]): string =>
   amounts.reduce((total, a) => (/^-?\d+$/.test(a) ? total + BigInt(a) : total), 0n).toString();
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+/** The page while the parcel loads: its heading, the history on the left, the order, charges and payout cards on the right. */
+function ParcelSkeleton() {
+  const card = (title: string, description: string, rows: number) => (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <FactsSkeleton rows={rows} />
+      </CardContent>
+    </Card>
+  );
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5 text-sm">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right">{children}</dd>
-    </div>
+    <Loading label="Loading the parcel">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-5 w-20 rounded-full" />
+        <div className="basis-full">
+          <Line className="w-96" />
+        </div>
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>PostEx history</CardTitle>
+            <CardDescription>Every status PostEx has reported, in Karachi time.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="flex gap-3">
+                <Skeleton className="mt-0.5 size-4 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1">
+                  <Line className={['w-48', 'w-64', 'w-40', 'w-56'][i % 4]} />
+                  <SmallLine className="w-36" />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        <div className="space-y-6">
+          {card('Shopify order', 'The order this parcel carries.', 7)}
+          {card('Charges', 'What PostEx charged for carrying this parcel.', 3)}
+          {card('Payout', 'The PostEx payment that included this parcel.', 1)}
+        </div>
+      </div>
+    </Loading>
   );
 }
 
@@ -42,7 +85,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
  */
 export function ParcelDetailPage() {
   const { id = '' } = useParams();
-  const { data, error, loading, reload } = useApi<{ parcel: ParcelDetail }>(`/api/v1/parcels/${encodeURIComponent(id)}`);
+  const { data, error, reload } = useApi<{ parcel: ParcelDetail }>(`/api/v1/parcels/${encodeURIComponent(id)}`);
   const { pending, checkIn } = useCheckIn(reload);
   const parcel = data?.parcel;
   const entries = useMemo(() => (parcel ? timelineEntries(parcel.events) : []), [parcel]);
@@ -73,8 +116,7 @@ export function ParcelDetailPage() {
     return (
       <>
         {back}
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="mt-6 h-64 w-full" aria-busy={loading} />
+        <ParcelSkeleton />
       </>
     );
   }

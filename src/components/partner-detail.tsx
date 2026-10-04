@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { FactsSkeleton, ListSkeleton, Loading } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import { type Partner, type PartnerHolding, type PartnerImport as PartnerImportRow, type VariantHit, apiPost } from '@/lib/api';
 import { formatKarachiFull, formatPaisa } from '@/lib/format';
@@ -185,7 +185,11 @@ export function PartnerDetail({ partner, onChanged }: { partner: Partner; onChan
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {stock.loading && !stock.data && <Skeleton className="h-16 w-full" />}
+          {stock.loading && !stock.data && (
+            <Loading label="Loading the holdings">
+              <FactsSkeleton rows={4} />
+            </Loading>
+          )}
           {stock.error && !stock.data && <p className="text-sm text-brand-coral">Could not load the holdings: {stock.error}</p>}
           {stock.data && holdings.length === 0 && <p className="text-sm text-muted-foreground">Nothing is held here. Send stock to start.</p>}
           {holdings.length > 0 && (
@@ -232,7 +236,7 @@ export function PartnerDetail({ partner, onChanged }: { partner: Partner; onChan
           <CardDescription>Each import can be reversed as a whole.</CardDescription>
         </CardHeader>
         <CardContent>
-          {imports.loading && !imports.data && <Skeleton className="h-12 w-full" />}
+          {imports.loading && !imports.data && <ListSkeleton rows={2} trailing="button" label="Loading the imports" />}
           {imports.data && <ImportHistory imports={imports.data.imports} onReversed={refresh} />}
         </CardContent>
       </Card>

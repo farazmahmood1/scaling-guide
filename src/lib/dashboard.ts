@@ -1,4 +1,4 @@
-import type { BreakdownRow, RateFigure, ReturnRateRow, StoreKey } from '@/lib/api';
+import type { BreakdownRow, OrderFunnelData, ProductReportRow, RateFigure, ReturnRateRow } from '@/lib/api';
 import { karachiLocal } from '@/lib/format';
 import { monthLabel } from '@/lib/ledger';
 
@@ -19,6 +19,8 @@ export const DASH_RANGES = [
   { key: 'all', label: 'All time' },
 ] as const;
 export type DashRangeKey = (typeof DASH_RANGES)[number]['key'];
+/** The period the dashboard opens on when the address names none. */
+export const DEFAULT_RANGE: DashRangeKey = 'month';
 export const isDashRange = (v: string | null): v is DashRangeKey => DASH_RANGES.some((r) => r.key === v);
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -53,6 +55,12 @@ export const rangeFor = (key: DashRangeKey, today: string = todayKarachi()): Per
       return { from: null, to: null };
   }
 };
+
+// A real calendar day: `2026-02-30` has the right shape and is not one.
+const isDay = (v: string | null): v is string => v !== null && /^\d{4}-\d{2}-\d{2}$/.test(v) && addDays(v, 0) === v;
+
+/** A period someone picked by hand, or null when the two days do not make one (missing, not a day, or backwards). */
+export const customPeriod = (from: string | null, to: string | null): { from: string; to: string } | null => (isDay(from) && isDay(to) && from <= to ? { from, to } : null);
 
 /** The window the trend charts always cover: the last six calendar months, this one included. */
 export const trendWindow = (today: string = todayKarachi()): Required<Period> => {
@@ -147,6 +155,63 @@ export const rateTrend = (rows: readonly ReturnRateRow[]): RatePoint[] =>
     .sort((a, b) => a.key.localeCompare(b.key))
     .map((r) => ({ key: r.key, label: monthLabel(r.key).replace(/ 20(\d\d)$/, " '$1"), rate: r.rate, returned: r.returned, of: r.of }));
 
+export const FUNNEL_STEPS = [
+  { key: 'placed', label: 'Placed' },
+  { key: 'confirmed', label: 'Confirmed' },
+  { key: 'booked', label: 'Booked' },
+  { key: 'inTransit', label: 'In transit' },
+  { key: 'delivered', label: 'Delivered' },
+  { key: 'returned', label: 'Returned' },
+] as const;
+
+export interface FunnelPoint {
+  key: (typeof FUNNEL_STEPS)[number]['key'];
+  label: string;
+  count: number;
+  /** The share of placed orders that reached this step; null when none were placed. */
+  share: number | null;
+}
+
+/** The funnel's steps in order, each with its share of the orders placed. */
+export const funnelPoints = (funnel: OrderFunnelData): FunnelPoint[] =>
+  FUNNEL_STEPS.map((s) => ({ key: s.key, label: s.label, count: funnel[s.key], share: funnel.placed === 0 ? null : funnel[s.key] / funnel.placed }));
+
+/** A share as printed beside a count (`85.2%`); a dash when there is nothing to divide. */
+export const shareText = (share: number | null): string => (share === null ? '—' : `${(share * 100).toFixed(1)}%`);
+
+export interface ProductSales {
+  key: string;
+  title: string;
+  units: number;
+  parcels: number;
+  /** What the units sold for, integer paisa in a string. */
+  revenue: string;
+  /** This product's units against the best seller's, 0 to 1: only for the length of its bar. */
+  share: number;
+}
+
+/**
+ * The products that sold the most units, best first, with what they sold for. The report's two
+ * catch-all rows (items not linked to a product, orders with no lines) are not products, and a
+ * product whose units were all returned sold nothing. Ties go to the larger sales, then the name.
+ */
+export const topProducts = (rows: readonly ProductReportRow[], top = 5): ProductSales[] => {
+  const sold = rows.filter((r) => r.key !== 'unmapped' && r.key !== 'no_lines' && r.units > 0);
+  const ranked = sold
+    .sort((a, b) => b.units - a.units || (BigInt(b.revenue) > BigInt(a.revenue) ? 1 : BigInt(b.revenue) < BigInt(a.revenue) ? -1 : a.title.localeCompare(b.title)))
+    .slice(0, top);
+  const best = ranked[0]?.units ?? 0;
+  return ranked.map((r) => ({
+    key: r.key,
+    // Shopify names a product's only variant "Default Title"; it says nothing to a reader.
+    title: r.title.replace(/ · Default Title$/, ''),
+    units: r.units,
+    parcels: r.parcels,
+    revenue: r.revenue,
+    share: best > 0 ? r.units / best : 0,
+  }));
+};
+
 /** Below this many finished parcels a city's rate says nothing: 1 of 1 returned is not "100%". */
 export const MIN_CITY_OUTCOMES = 10;
 
@@ -169,37 +234,40 @@ export const AGE_BUCKETS = [
 
 export interface Scope {
   range: DashRangeKey;
-  store: StoreKey | null;
+  /** A hand-picked period; when set it is the period, and `range` is not read. */
+  custom?: Period | null;
 }
 
-/** The query that carries a period and brand to another screen, in that screen's own parameter names. */
-const carry = (p: Period, store: StoreKey | null, extra: Record<string, string> = {}, options: { openEnded?: 'all' } = {}): string => {
+/**
+ * The query that carries a period to another screen, in that screen's own parameter names. The
+ * brand is not carried: it is chosen in the sidebar and already narrows the screen opened.
+ */
+const carry = (p: Period, extra: Record<string, string> = {}, options: { openEnded?: 'all' } = {}): string => {
   const q = new URLSearchParams(extra);
   if (p.from) q.set('from', p.from);
   if (p.to) q.set('to', p.to);
   // The Reports screen reads "no dates" as this year, so all time is a flag it understands.
   if (!p.from && !p.to && options.openEnded === 'all') q.set('all', '1');
-  if (store) q.set('store', store);
   return q.toString();
 };
 
-/** The report behind each tile, opened on the tile's own period and brand. */
+/** The report behind each tile, opened on the tile's own period. */
 export const tileLinks = (scope: Scope, asOf: string, today: string = todayKarachi()) => {
-  const period = rangeFor(scope.range, today);
-  const report = (extra: Record<string, string> = {}) => `/reports?${carry(period, scope.store, extra, { openEnded: 'all' })}`;
-  const parcels = (stage: string) => `/parcels?${carry(period, scope.store, { stage })}`;
+  const period = scope.custom ?? rangeFor(scope.range, today);
+  const report = (extra: Record<string, string> = {}) => `/reports?${carry(period, extra, { openEnded: 'all' })}`;
+  const parcels = (stage: string) => `/parcels?${carry(period, { stage })}`;
   return {
     revenue: report({ tab: 'general-ledger', account: '4000' }),
     profit: report(),
     returnRate: parcels('returned'),
     deliverySuccess: parcels('delivered'),
     // The COD receivable's ledger from the start, so its closing balance is the figure on the tile.
-    cash: `/reports?${carry({ from: '2000-01-01', to: asOf }, scope.store, { tab: 'general-ledger', account: '1100' })}`,
+    cash: `/reports?${carry({ from: '2000-01-01', to: asOf }, { tab: 'general-ledger', account: '1100' })}`,
     profitPerParcel: report(),
   };
 };
 
-export const returnedParcelsLink = (period: Period, store: StoreKey | null, city: string): string => `/parcels?${carry(period, store, { stage: 'returned', city })}`;
+export const returnedParcelsLink = (period: Period, city: string): string => `/parcels?${carry(period, { stage: 'returned', city })}`;
 
 // ---- Definitions ----
 
@@ -221,6 +289,10 @@ export const DEFINITIONS = {
   trend: 'Revenue and net profit for each calendar month (Karachi), from the books, for the last six months. Revenue is posted when a parcel is delivered, so a month can show a sale and, later, its reversal.',
   returnTrend: 'The return rate, as defined above, for parcels booked in each of the last six months. A recent month fills in as its parcels reach an outcome, so the latest bar can still move.',
   cityReturns: `The return rate by delivery city, as defined above, for the period. Cities with fewer than ${MIN_CITY_OUTCOMES} finished parcels are left out, because a rate on a handful of parcels says nothing.`,
+  funnel: 'Of the online orders placed in the period, how many got as far as each step: confirmed by the desk, booked with PostEx, moving, then delivered or returned. Each step counts orders that reached it or went further, so the gap between two steps is where orders dropped off or are still waiting. A parcel on its way back is not returned until it arrives. PR packages and partners\' sales are not counted.',
+  topProducts: 'The products that sold the most units, best first: units delivered in the period, net of any returned after delivery, and what they sold for. Orders still on their way are not counted until they are delivered. PR packages are not counted.',
+  queue: 'Online orders not booked yet that carry no status tag in Shopify: nobody has confirmed, cancelled or chased them yet. Newest first. Tags from other apps, such as reviews, do not count.',
+  recentOrders: "The newest online orders and what each one made: its revenue, less the cost of the goods, PostEx's charges with their tax, marketing and write-offs, over all its parcels, from the books. Shown once an order is delivered or returned. Before that the books hold only part of the picture, so no figure is given.",
   alerts: 'Things a person has to look at: items open on the reconciliation queue (grouped by what is wrong) and returned parcels nobody has checked in at the warehouse. Each is cleared by acting on it, not by time.',
   returnsAwaiting: 'Parcels PostEx has brought back to us that nobody has yet checked in as restocked or damaged. Until they are, their stock is not on the shelf.',
 } as const;

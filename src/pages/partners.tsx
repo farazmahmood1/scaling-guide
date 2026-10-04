@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton, num } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import { type Partner, apiPost } from '@/lib/api';
 import { formatPaisa } from '@/lib/format';
@@ -95,7 +95,7 @@ export function PartnersPage() {
             <CardDescription>Choose one to see its holdings, move stock and import its sales sheet.</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading && !data && <Skeleton className="h-24 w-full" />}
+            {loading && !data && <TableSkeleton rows={4} label="Loading the partners" columns={['Partner', 'City', num('Units held'), num('Owes us')]} />}
             {error && !data && <p className="text-sm text-brand-coral">Could not load partners: {error}</p>}
             {data && partners.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No partners yet. Add the first one.</p>}
             {partners.length > 0 && (

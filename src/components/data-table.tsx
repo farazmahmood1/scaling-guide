@@ -26,6 +26,8 @@ export interface Column<T> {
   align?: 'left' | 'right';
   /** Cannot be hidden (the column that identifies the row). */
   pinned?: boolean;
+  /** False for a column that holds a button, not data: it is left out of the CSV export. */
+  exported?: boolean;
   className?: string;
 }
 
@@ -74,7 +76,8 @@ export function DataTable<T>(props: DataTableProps<T>) {
     setExporting(true);
     try {
       const all = await props.exportRows();
-      downloadText(`${props.exportName ?? 'export'}.csv`, toCsv(visible.map((c) => c.header), all.map((row) => visible.map((c) => c.csv(row)))));
+      const data = visible.filter((c) => c.exported !== false);
+      downloadText(`${props.exportName ?? 'export'}.csv`, toCsv(data.map((c) => c.header), all.map((row) => data.map((c) => c.csv(row)))));
       toast.success(`Exported ${numberFormat.format(all.length)} rows`);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Export failed');
@@ -107,7 +110,12 @@ export function DataTable<T>(props: DataTableProps<T>) {
               ? 'No rows'
               : `${numberFormat.format(first)}–${numberFormat.format(last)} of ${numberFormat.format(total)}`
             : status === 'loading'
-              ? 'Loading…'
+              ? (
+                  <>
+                    <span className="sr-only">Loading…</span>
+                    <Skeleton aria-hidden className="my-0.5 h-4 w-28" />
+                  </>
+                )
               : ''}
         </p>
         <div className="flex items-center gap-2">
@@ -178,11 +186,12 @@ export function DataTable<T>(props: DataTableProps<T>) {
           </thead>
           <tbody ref={body} className={cn(loading && rows && rows.length > 0 && 'opacity-60 transition-opacity')}>
             {status === 'loading' &&
-              Array.from({ length: Math.min(query.pageSize, 8) }, (_, i) => (
-                <tr key={i} className="border-t">
-                  {visible.map((c) => (
-                    <td key={c.key} className="px-3 py-2.5">
-                      <Skeleton className="h-4 w-full" />
+              // The same row height as a loaded row, and bars of a text's width on the column's own side.
+              Array.from({ length: Math.min(query.pageSize, 10) }, (_, i) => (
+                <tr key={i} className="border-t" aria-hidden>
+                  {visible.map((c, j) => (
+                    <td key={c.key} className="px-3 py-2">
+                      <Skeleton className={cn('my-0.5 h-4 max-w-full', c.align === 'right' ? ['ml-auto w-16', 'ml-auto w-12', 'ml-auto w-20'][(i + j) % 3] : ['w-28', 'w-20', 'w-36', 'w-24'][(i + j * 2) % 4])} />
                     </td>
                   ))}
                 </tr>

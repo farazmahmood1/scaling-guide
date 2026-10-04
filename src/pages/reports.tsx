@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 
+import { useBrand } from '@/brand/brand-context';
 import { ClosedBanner } from '@/components/closed-period';
 import { JournalLines } from '@/components/journal-lines';
 import { PartnerLedgerView, PnlView, TrialBalanceView } from '@/components/report-views';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton, num } from '@/components/skeletons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useApi } from '@/hooks/use-api';
 import { usePeriods } from '@/hooks/use-periods';
@@ -42,7 +43,9 @@ function GeneralLedgerView({ account, onAccount, scope, closed }: { account: str
           ))}
         </select>
       </label>
-      {accounts.loading && !accounts.data && <Skeleton className="h-24 w-full" />}
+      {accounts.loading && !accounts.data && (
+        <TableSkeleton rows={8} footer label="Loading the ledger" columns={['Date', 'Entry', 'Account', { header: 'What', sub: true }, num('Debit'), num('Credit'), num('Balance')]} />
+      )}
       {accounts.data && rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nothing was posted yet.</p>}
       {chosen && <JournalLines key={`${chosen}:${drillKey({}, scope)}`} drill={{ account: chosen }} scope={scope} title={`${chosen} ${name}`.trim()} closed={closed} />}
     </div>
@@ -51,7 +54,7 @@ function GeneralLedgerView({ account, onAccount, scope, closed }: { account: str
 
 /**
  * The reports: profit and loss, trial balance, general ledger and partner ledger, over a period
- * and brand shared by all four. Every figure opens the journal lines it is made of, and from a line
+ * shared by all four and the brand chosen in the sidebar. Every figure opens the journal lines it is made of, and from a line
  * its whole entry. Months the books are closed for are marked wherever they appear.
  */
 export function ReportsPage() {
@@ -62,7 +65,7 @@ export function ReportsPage() {
   // With nothing chosen the view is this year; "All time" is its own choice, not a missing one.
   const from = all ? null : (params.get('from') ?? defaults.from);
   const to = all ? null : (params.get('to') ?? defaults.to);
-  const store = params.get('store') === 'nur' || params.get('store') === 'organics' ? params.get('store') : null;
+  const { brand: store } = useBrand();
   const scope = useMemo(() => ({ from, to, store }), [from, to, store]);
   const { closed } = usePeriods();
   const touched = closedInRange(from, to, closed);
@@ -92,7 +95,7 @@ export function ReportsPage() {
 
       <Card className="mb-4">
         <CardHeader className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2" role="search" aria-label="Period and brand">
+          <div className="flex flex-wrap items-center gap-2" role="search" aria-label="Period">
             <label className="flex items-center gap-1.5 text-sm">
               From
               <input type="date" className={inputClass} value={from ?? ''} max={to ?? undefined} onChange={(e) => setRange(e.target.value || null, to)} />
@@ -116,11 +119,6 @@ export function ReportsPage() {
             >
               All time
             </Button>
-            <select className={inputClass} value={store ?? ''} onChange={(e) => set({ store: e.target.value || null })} aria-label="Brand">
-              <option value="">Both brands</option>
-              <option value="nur">NUR by Juggun</option>
-              <option value="organics">Juggun's Organics</option>
-            </select>
           </div>
           <ClosedBanner months={touched} />
         </CardHeader>

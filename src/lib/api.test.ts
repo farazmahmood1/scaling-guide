@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, UNAUTHORIZED_EVENT, apiGet, getToken, setToken } from '@/lib/api';
+import { ApiError, DATA_CHANGED_EVENT, UNAUTHORIZED_EVENT, apiGet, apiPost, apiPut, getToken, setToken } from '@/lib/api';
 
 // Tests run in Node, not a browser: only the two globals the client touches are stubbed, so a
 // DOM library is not needed.
@@ -66,5 +66,25 @@ describe('api client', () => {
     vi.stubGlobal('fetch', respond(502, undefined, 'Bad Gateway'));
 
     await expect(apiGet('/api/v1/integrations/health')).rejects.toMatchObject({ status: 502, message: 'Bad Gateway' });
+  });
+
+  it('says when a write has gone through, so cached reads are fetched again', async () => {
+    const changed = vi.fn();
+    events.addEventListener(DATA_CHANGED_EVENT, changed);
+
+    vi.stubGlobal('fetch', respond(200, { ok: true }));
+    await apiGet('/api/v1/parcels');
+    expect(changed).not.toHaveBeenCalled();
+    await apiPost('/api/v1/returns/1/check-in', { outcome: 'restocked' });
+    expect(changed).toHaveBeenCalledOnce();
+    // Signing in or saving a column choice moves no figure.
+    await apiPut('/api/v1/auth/preferences/columns/parcels', { hidden: [] });
+    expect(changed).toHaveBeenCalledOnce();
+
+    // A refused write changed nothing.
+    vi.stubGlobal('fetch', respond(409, { error: { message: 'Already checked in' } }));
+    await apiPost('/api/v1/returns/1/check-in', {}).catch(() => undefined);
+    expect(changed).toHaveBeenCalledOnce();
+    events.removeEventListener(DATA_CHANGED_EVENT, changed);
   });
 });

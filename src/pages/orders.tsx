@@ -5,6 +5,7 @@ import { useAuth } from '@/auth/auth-context';
 import { type Column, DataTable } from '@/components/data-table';
 import { FilterBar, type MultiFilter } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useApi } from '@/hooks/use-api';
 import { useListQuery } from '@/hooks/use-list-query';
@@ -16,7 +17,7 @@ import { CHANNEL_LABELS, ORDER_CHANNELS, ORDER_FLAGS, ORDER_FLAG_LABELS, ORDER_S
 import { stageText, storeLabel } from '@/lib/parcels';
 import { stageTone } from '@/lib/postex';
 
-const COLUMN_KEYS = ['order', 'store', 'state', 'customer', 'phone', 'city', 'total', 'items', 'placedAt', 'parcel', 'payment', 'flags'];
+const COLUMN_KEYS = ['order', 'view', 'store', 'state', 'customer', 'phone', 'city', 'total', 'items', 'placedAt', 'parcel', 'payment', 'flags'];
 
 const SPEC_BASE: Omit<QuerySpec, 'multi'> = {
   sortKeys: ['placedAt', 'total', 'items'],
@@ -24,11 +25,12 @@ const SPEC_BASE: Omit<QuerySpec, 'multi'> = {
   pageSizes: [25, 50, 100],
   defaultPageSize: 25,
   columnKeys: COLUMN_KEYS,
+  screen: 'orders',
   defaultHidden: ['payment'],
 };
 
 // Cities come from the data, so the spec accepts any short value for them.
-const SPEC: QuerySpec = { ...SPEC_BASE, multi: { state: ORDER_STATES, store: ['nur', 'organics'], channel: ORDER_CHANNELS, flag: ORDER_FLAGS, city: null } };
+const SPEC: QuerySpec = { ...SPEC_BASE, multi: { state: ORDER_STATES, channel: ORDER_CHANNELS, flag: ORDER_FLAGS, city: null } };
 
 const flagText = (row: OrderListRow): string[] =>
   [
@@ -47,6 +49,20 @@ const flagBadges = (row: OrderListRow) => (
 
 const COLUMNS: Column<OrderListRow>[] = [
   { key: 'order', header: 'Order', pinned: true, cell: (r) => <span className="font-mono text-xs">{r.orderNumber}</span>, csv: (r) => r.orderNumber },
+  {
+    key: 'view',
+    header: '',
+    pinned: true,
+    exported: false,
+    cell: (r) => (
+      <Button asChild variant="outline" size="sm" className="h-7 px-2.5">
+        <Link to={`/orders/${r.id}`} aria-label={`View order ${r.orderNumber}`}>
+          View
+        </Link>
+      </Button>
+    ),
+    csv: () => '',
+  },
   { key: 'store', header: 'Store', cell: (r) => (r.store === 'nur' ? 'NUR' : r.store === 'organics' ? 'Organics' : '—'), csv: (r) => storeLabel(r.store) },
   { key: 'state', header: 'Status', cell: (r) => <Badge variant={orderStateTone(r.state)}>{orderStateText(r.state)}</Badge>, csv: (r) => orderStateText(r.state) },
   { key: 'customer', header: 'Customer', cell: (r) => r.customerName ?? '—', csv: (r) => r.customerName ?? '' },
@@ -87,8 +103,8 @@ function ParcelLink({ parcel }: { parcel: NonNullable<OrderListRow['parcel']> })
 
 /**
  * Every Shopify order and the state it is in: search by order number, customer, phone or tracking
- * number, filter by status, store, channel, city, placing day and the flags people look for. The
- * view is in the address, so it can be shared.
+ * number, filter by status, channel, city, placing day and the flags people look for, within the
+ * sidebar's brand. The view is in the address, so it can be shared.
  */
 export function OrdersPage() {
   const [query, setQuery] = useListQuery(SPEC);
@@ -102,7 +118,6 @@ export function OrdersPage() {
   const filters = useMemo<MultiFilter[]>(
     () => [
       { key: 'state', label: 'Status', options: ORDER_STATES.map((s) => ({ value: s, label: ORDER_STATE_LABELS[s] })) },
-      { key: 'store', label: 'Store', options: [{ value: 'nur', label: 'NUR by Juggun' }, { value: 'organics', label: "Juggun's Organics" }] },
       { key: 'channel', label: 'Channel', options: ORDER_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABELS[c] })) },
       { key: 'flag', label: 'Flag', options: ORDER_FLAGS.map((f) => ({ value: f, label: ORDER_FLAG_LABELS[f] })) },
       { key: 'city', label: 'City', options: (cities.data?.cities ?? []).map((c) => ({ value: c.city, label: `${c.city} (${c.orders})` })) },

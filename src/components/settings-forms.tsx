@@ -5,22 +5,11 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { FormSkeleton } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
-import { type AlertSettings, type ConfirmationTagSettings, type DeskSettings, type PurchasingSettings, apiPut } from '@/lib/api';
+import { type AlertSettings, type ConfirmationTagSettings, type PurchasingSettings, apiPut } from '@/lib/api';
 import { paisaToInput } from '@/lib/format';
-import {
-  TEMPLATE_FIELDS,
-  decimalNumber,
-  deskHoursError,
-  parseRetryMinutes,
-  parseTags,
-  previewTemplate,
-  rupeesToPaisaNumber,
-  tagsToText,
-  templateError,
-  wholeNumber,
-} from '@/lib/settings';
+import { decimalNumber, parseTags, rupeesToPaisaNumber, tagsToText, wholeNumber } from '@/lib/settings';
 
 /**
  * Loads one setting, and holds the form for it. The form is only drawn once the saved value is in,
@@ -42,9 +31,9 @@ function useSetting<T>(path: string, key: string) {
   return { saved: data?.[key], error, loading, save };
 }
 
-function Loading({ error, loading, hasData }: { error?: string; loading: boolean; hasData: boolean }) {
+function Loading({ error, loading, hasData, fields, columns = 3, multiline }: { error?: string; loading: boolean; hasData: boolean; /** The form's shape while it loads. */ fields: number; columns?: 2 | 3; multiline?: boolean }) {
   if (error && !hasData) return <p role="alert" className="text-sm text-brand-coral">Could not load this setting: {error}</p>;
-  if (loading && !hasData) return <Skeleton className="h-32 w-full" />;
+  if (loading && !hasData) return <FormSkeleton fields={fields} columns={columns} multiline={multiline} />;
   return null;
 }
 
@@ -128,110 +117,8 @@ export function AlertsForm() {
   const { saved, error, loading, save } = useSetting<AlertSettings>('/api/v1/settings/alerts', 'alerts');
   return (
     <>
-      <Loading error={error} loading={loading} hasData={!!saved} />
+      <Loading fields={3} error={error} loading={loading} hasData={!!saved} />
       {saved && <AlertsEditor key={JSON.stringify(saved)} saved={saved} onSave={save} />}
-    </>
-  );
-}
-
-// ---- Desk and WhatsApp ----
-
-type Brand = 'nur' | 'organics';
-const BRAND_LABEL: Record<Brand, string> = { nur: 'NUR by Juggun', organics: "Juggun's Organics" };
-
-function DeskEditor({ saved, onSave }: { saved: DeskSettings; onSave: (v: DeskSettings) => Promise<boolean> }) {
-  const seed = () => ({
-    attempts: String(saved.maxAttempts),
-    retry: saved.retryMinutes.join(', '),
-    open: saved.deskHours.open,
-    close: saved.deskHours.close,
-    nur: saved.whatsappTemplates.nur,
-    organics: saved.whatsappTemplates.organics,
-  });
-  const [draft, setDraft] = useState(seed);
-  const [saving, setSaving] = useState(false);
-  const attempts = wholeNumber(draft.attempts, 1, 10);
-  const retry = parseRetryMinutes(draft.retry);
-  const hoursError = deskHoursError(draft.open, draft.close);
-  const templateErrors = { nur: templateError(draft.nur), organics: templateError(draft.organics) };
-  const valid = attempts !== null && retry !== null && hoursError === null && !templateErrors.nur && !templateErrors.organics;
-  const dirty = JSON.stringify(draft) !== JSON.stringify(seed());
-  const set = (k: keyof typeof draft) => (e: { target: { value: string } }) => setDraft({ ...draft, [k]: e.target.value });
-
-  return (
-    <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Attempts before an order is unreachable" hint="Unanswered contacts after which the agent stops." error={attempts === null ? 'A whole number, 1 to 10' : null}>
-          {(p) => <Input {...p} inputMode="numeric" value={draft.attempts} onChange={set('attempts')} />}
-        </Field>
-        <Field label="Wait between retries (minutes)" hint="After the first, second… unanswered attempt; the last value repeats. For example 60, 180." error={retry === null ? 'One to five values, each from 5 minutes to 1440' : null}>
-          {(p) => <Input {...p} value={draft.retry} onChange={set('retry')} />}
-        </Field>
-        <Field label="Desk opens (Karachi time)" error={hoursError}>
-          {(p) => <Input {...p} type="time" value={draft.open} onChange={set('open')} />}
-        </Field>
-        <Field label="Desk closes (Karachi time)" hint="A retry that falls outside these hours waits for the next opening.">
-          {(p) => <Input {...p} type="time" value={draft.close} onChange={set('close')} />}
-        </Field>
-      </div>
-
-      {(['nur', 'organics'] as const).map((brand) => (
-        <div key={brand} className="space-y-2 rounded-lg border p-3">
-          <Field
-            label={`WhatsApp message: ${BRAND_LABEL[brand]}`}
-            hint="Sent as a click-to-chat link from the agent's own WhatsApp. Nothing is sent by the platform."
-            error={templateErrors[brand]}
-          >
-            {(p) => <textarea {...p} rows={4} className="w-full rounded-lg border bg-background p-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-invalid:border-brand-coral" value={draft[brand]} onChange={set(brand)} />}
-          </Field>
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={`Add a placeholder to the ${BRAND_LABEL[brand]} message`}>
-            <span className="text-xs text-muted-foreground">Add:</span>
-            {TEMPLATE_FIELDS.map((f) => (
-              <button
-                key={f.name}
-                type="button"
-                title={f.hint}
-                className="rounded-full border px-2 py-0.5 font-mono text-xs hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                onClick={() => setDraft({ ...draft, [brand]: `${draft[brand]}${draft[brand] && !draft[brand].endsWith(' ') ? ' ' : ''}{${f.name}}` })}
-              >
-                {`{${f.name}}`}
-              </button>
-            ))}
-          </div>
-          <div className="rounded-lg bg-muted/50 p-2 text-sm">
-            <p className="mb-0.5 text-xs font-medium text-muted-foreground">Preview, with made-up details</p>
-            <p className="whitespace-pre-wrap">{previewTemplate(draft[brand])}</p>
-          </div>
-        </div>
-      ))}
-
-      <SaveBar
-        dirty={dirty}
-        valid={valid}
-        saving={saving}
-        onDiscard={() => setDraft(seed())}
-        onSave={async () => {
-          if (!valid) return;
-          setSaving(true);
-          await onSave({
-            maxAttempts: attempts,
-            retryMinutes: retry,
-            deskHours: { open: draft.open, close: draft.close },
-            whatsappTemplates: { nur: draft.nur.trim(), organics: draft.organics.trim() },
-          });
-          setSaving(false);
-        }}
-      />
-    </div>
-  );
-}
-
-export function DeskForm() {
-  const { saved, error, loading, save } = useSetting<DeskSettings>('/api/v1/settings/confirmation-desk', 'confirmationDesk');
-  return (
-    <>
-      <Loading error={error} loading={loading} hasData={!!saved} />
-      {saved && <DeskEditor key={JSON.stringify(saved)} saved={saved} onSave={save} />}
     </>
   );
 }
@@ -306,7 +193,7 @@ export function PurchasingForm() {
   const { saved, error, loading, save } = useSetting<PurchasingSettings>('/api/v1/settings/purchasing', 'purchasing');
   return (
     <>
-      <Loading error={error} loading={loading} hasData={!!saved} />
+      <Loading fields={5} error={error} loading={loading} hasData={!!saved} />
       {saved && <PurchasingEditor key={JSON.stringify(saved)} saved={saved} onSave={save} />}
     </>
   );
@@ -360,7 +247,7 @@ export function TagsForm() {
   const { saved, error, loading, save } = useSetting<ConfirmationTagSettings>('/api/v1/settings/confirmation-tags', 'confirmationTags');
   return (
     <>
-      <Loading error={error} loading={loading} hasData={!!saved} />
+      <Loading fields={5} columns={2} multiline error={error} loading={loading} hasData={!!saved} />
       {saved && <TagsEditor key={JSON.stringify(saved)} saved={saved} onSave={save} />}
     </>
   );

@@ -12,7 +12,8 @@ import type { QuerySpec } from '@/lib/list-query';
 import { CITIES, type MockOrder, STATUSES, matching, mockOrders, page } from '@/lib/mock-orders';
 
 const SPEC: QuerySpec = {
-  multi: { status: STATUSES, store: ['nur', 'organics'], city: CITIES },
+  // `brand`, not `store`: a `store` in the address is taken as the sidebar's brand.
+  multi: { status: STATUSES, brand: ['nur', 'organics'], city: CITIES },
   sortKeys: ['orderNumber', 'placedAt', 'total', 'city', 'items'],
   defaultSort: { key: 'placedAt', dir: 'desc' },
   pageSizes: [25, 50, 100],
@@ -23,7 +24,7 @@ const SPEC: QuerySpec = {
 
 const FILTERS: MultiFilter[] = [
   { key: 'status', label: 'Status', options: STATUSES.map((s) => ({ value: s, label: s[0]!.toUpperCase() + s.slice(1) })) },
-  { key: 'store', label: 'Brand', options: [{ value: 'nur', label: 'NUR by Juggun' }, { value: 'organics', label: "Juggun's Organics" }] },
+  { key: 'brand', label: 'Brand', options: [{ value: 'nur', label: 'NUR by Juggun' }, { value: 'organics', label: "Juggun's Organics" }] },
   { key: 'city', label: 'City', options: CITIES.map((c) => ({ value: c, label: c })) },
 ];
 

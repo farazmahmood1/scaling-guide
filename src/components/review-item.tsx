@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Loading } from '@/components/skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { type OrderCandidate, type ReviewItem, type StoreKey, apiGet, apiPost } from '@/lib/api';
 import { describeItem, formatKarachiTime, formatPaisa } from '@/lib/format';
@@ -175,7 +176,13 @@ function LinkPanel({ item, onLinked }: { item: ReviewItem; onLinked: (orderNumbe
   return (
     <div className="mt-3 space-y-3 rounded-lg border bg-muted/40 p-3">
       <Input aria-label="Search orders" placeholder="Search by order number, city or amount" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
-      {!candidates && <Skeleton className="h-10 w-full" />}
+      {!candidates && (
+        <Loading label="Loading nearby orders" className="flex flex-wrap gap-2">
+          {['w-64', 'w-56', 'w-60'].map((w, i) => (
+            <Skeleton key={i} className={`h-8 ${w} max-w-full`} />
+          ))}
+        </Loading>
+      )}
       {candidates && shown.length === 0 && <p className="text-sm text-muted-foreground">{candidates.length === 0 ? 'No nearby orders in this store.' : 'None of the nearby orders match.'}</p>}
       <ul className="flex flex-wrap gap-2">
         {shown.map((c) => (

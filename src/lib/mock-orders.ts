@@ -56,7 +56,7 @@ const compare: Record<string, (a: MockOrder, b: MockOrder) => number> = {
 export const matching = (rows: readonly MockOrder[], q: ListQuery): MockOrder[] => {
   const search = q.search.trim().toLowerCase();
   const status = q.multi['status'];
-  const store = q.multi['store'];
+  const store = q.multi['brand'];
   const city = q.multi['city'];
   const out = rows.filter(
     (r) =>

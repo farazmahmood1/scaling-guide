@@ -1,3 +1,4 @@
+import { TableSkeleton, num } from '@/components/skeletons';
 import { CircleAlert, PackageX, Store, Truck, Undo2, Warehouse } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -52,6 +53,11 @@ export function StockTotals({ rows }: { rows: readonly StockRow[] }) {
       })}
     </dl>
   );
+}
+
+/** The stock table while it loads: the product column and one column per place. */
+export function StockTableSkeleton() {
+  return <TableSkeleton rows={8} label="Loading stock" columns={[{ header: 'Product', sub: true }, ...BUCKETS.map((b) => num(b.label))]} />;
 }
 
 /**

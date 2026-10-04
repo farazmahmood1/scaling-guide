@@ -4,6 +4,8 @@ const TOKEN_KEY = 'nur.session';
 export const UNAUTHORIZED_EVENT = 'nur:unauthorized';
 /** A request was refused for lack of permission: the person's role may have changed, so ask the server again. */
 export const FORBIDDEN_EVENT = 'nur:forbidden';
+/** A write succeeded: anything read before it may now be out of date. */
+export const DATA_CHANGED_EVENT = 'nur:data-changed';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -48,6 +50,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (response.status === 403) window.dispatchEvent(new Event(FORBIDDEN_EVENT));
     throw new ApiError(failure?.message ?? response.statusText, response.status, failure?.code);
   }
+  // Signing in and saving a column choice change no business figure, so they leave cached reads alone.
+  if (init.method && init.method !== 'GET' && !path.startsWith('/api/v1/auth/')) window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
   return body as T;
 }
 
@@ -346,11 +350,15 @@ export interface StockComparisonRow {
   readAt: string;
 }
 
-// ---- Confirmation Desk ----
+// ---- Confirmations ----
 
 export type ConfirmationState = 'pending' | 'confirmed' | 'no_answer' | 'changed' | 'cancelled' | 'unreachable';
+/** Outcomes the old confirmation desk recorded; still shown on the orders it worked. */
 export type AttemptOutcome = 'confirmed' | 'changed' | 'cancelled' | 'no_answer' | 'callback' | 'wrong_number' | 'rescheduled';
 export type Channel = 'whatsapp' | 'call';
+
+/** new: no status tag yet; all: every order not booked. */
+export type QueueView = 'new' | 'all';
 
 export interface QueueRow {
   orderId: string;
@@ -362,14 +370,8 @@ export interface QueueRow {
   customerName: string | null;
   phone: string | null;
   city: string | null;
-  state: ConfirmationState;
-  source: 'desk' | 'shopify_tags' | 'none';
-  attempts: number;
-  nextAttemptAt: string | null;
-  lastAttemptAt: string | null;
-  outcomeReason: string | null;
-  agent: string | null;
-  due: boolean;
+  /** The order's Shopify tags, as Shopify has them. */
+  tags: string[];
   history: { delivered: number; returned: number };
   whatsappUrl: string | null;
   callUrl: string | null;
@@ -380,22 +382,14 @@ export interface QueuePage {
   page: number;
   pageSize: number;
   rows: QueueRow[];
-}
-
-export interface DeskAttempt {
-  id: string;
-  at: string;
-  agent: string;
-  channel: Channel | null;
-  outcome: AttemptOutcome;
-  followUpAt: string | null;
-  reason: string | null;
-  note: string | null;
+  /** Each store's status tags, for the filter. */
+  statusTags: Record<StoreKey, string[]>;
 }
 
 export interface DeskOrder {
   orderId: string;
   store: StoreKey;
+  shopifyOrderId: string | null;
   orderNumber: string;
   placedAt: string;
   totalPaisa: string;
@@ -406,10 +400,36 @@ export interface DeskOrder {
   phone: string | null;
   city: string | null;
   lines: Array<{ title: string; sku: string | null; qty: number; totalPaisa: string }>;
-  confirmation: { state: ConfirmationState; source: string; attempts: number; nextAttemptAt: string | null; outcomeReason: string | null; confirmedAt: string | null } | null;
-  attempts: DeskAttempt[];
+  tags: string[];
+  /** The status tags this store uses: what the page offers. */
+  statusTags: string[];
+  /** The order in Shopify's admin, where it is booked with PostEx. */
+  shopifyUrl: string | null;
   whatsappUrl: string | null;
   callUrl: string | null;
+}
+
+export interface TimelineEntry {
+  at: string;
+  /** shopify: on Shopify's own timeline; platform: done here (Shopify does not log tag changes). */
+  source: 'shopify' | 'platform';
+  who: string | null;
+  text: string;
+}
+
+export interface DeskOrderPage {
+  order: DeskOrder;
+  history: CustomerHistory | null;
+  timeline: TimelineEntry[];
+  /** error: Shopify could not be read, so the order is shown as last synced. */
+  shopify: { error: string | null; tagEditing: boolean };
+}
+
+export interface TagEditResult {
+  status: 'written' | 'unchanged';
+  add: string[];
+  remove: string[];
+  tags: string[];
 }
 
 export interface CustomerHistory {
@@ -420,23 +440,6 @@ export interface CustomerHistory {
   city: { name: string; delivered: number; returned: number; returnRate: number | null } | null;
 }
 
-export interface AgentPerformance {
-  agentId: string;
-  name: string;
-  contacts: number;
-  ordersWorked: number;
-  confirmed: number;
-  changed: number;
-  cancelled: number;
-  noAnswer: number;
-  wrongNumber: number;
-  callbacks: number;
-  unreachable: number;
-  confirmationRate: number | null;
-  medianMinutesToFirstContact: number | null;
-  outcomes: { delivered: number; returned: number; returnRate: number | null };
-}
-
 export interface DeskAlert {
   id: string;
   kind: 'confirmed_not_booked' | 'cancelled_but_booked';
@@ -445,13 +448,6 @@ export interface DeskAlert {
   store: StoreKey | null;
   detail: Record<string, unknown>;
   openedAt: string;
-}
-
-export interface DeskSettings {
-  maxAttempts: number;
-  retryMinutes: number[];
-  deskHours: { open: string; close: string };
-  whatsappTemplates: { nur: string; organics: string };
 }
 
 // ---- Settings ----
@@ -536,6 +532,106 @@ export interface DashboardData {
   };
   cash: { asOf: string; buckets: Array<{ bucket: '0-7' | '8-14' | '15-30' | '31+' | 'no_sale'; parcels: number; amount: string }>; awaiting: string; owedToPostex: string };
   profitPerParcel: { parcels: number; total: string; average: string | null };
+}
+
+/** One product's line in the products report. Money is integer paisa in strings. */
+export interface ProductReportRow {
+  /** The variant id, or `unmapped` / `no_lines` for the rows that hold what no product explains. */
+  key: string;
+  store: StoreKey | null;
+  sku: string | null;
+  title: string;
+  units: number;
+  revenue: string;
+  goods: string;
+  grossProfit: string;
+  parcels: number;
+}
+
+/** A recent order and what it made; `profit` is null until the order is delivered or returned. */
+export interface RecentOrderRow {
+  orderId: string;
+  orderNumber: string;
+  store: StoreKey;
+  placedAt: string;
+  /** Null for a role that may not see customers. */
+  customerName: string | null;
+  city: string | null;
+  product: string | null;
+  otherProducts: number;
+  units: number;
+  totalPaisa: string;
+  state: OrderState | null;
+  parcelId: string | null;
+  profit: string | null;
+}
+
+/** One order in full, from `GET /orders/:id`. Money is integer paisa in strings. */
+export interface OrderDetailData {
+  id: string;
+  orderNumber: string;
+  store: StoreKey;
+  channel: 'online' | 'consignment' | 'pr';
+  source: string;
+  state: OrderState | null;
+  placedAt: string;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  financialStatus: string | null;
+  fulfillmentStatus: string | null;
+  tags: string[];
+  discountCodes: string[];
+  influencer: { name: string; handle: string } | null;
+  money: { subtotalPaisa: string; discountPaisa: string; shippingPaisa: string; taxPaisa: string; totalPaisa: string };
+  customer: {
+    name: string | null;
+    /** Null for a role that may not see phone numbers. */
+    phone: string | null;
+    address: { line1: string | null; line2: string | null; city: string | null; province: string | null; postal: string | null; country: string | null } | null;
+  };
+  lines: Array<{ title: string; sku: string | null; qty: number; unitPaisa: string; discountPaisa: string; totalPaisa: string }>;
+  confirmation: {
+    state: ConfirmationState;
+    source: 'desk' | 'shopify_tags' | 'none';
+    attempts: number;
+    agent: string | null;
+    confirmedAt: string | null;
+    lastAttemptAt: string | null;
+    nextAttemptAt: string | null;
+    outcomeReason: string | null;
+  } | null;
+  attempts: Array<{ at: string; agent: string; channel: Channel | null; outcome: AttemptOutcome; followUpAt: string | null; reason: string | null; note: string | null }>;
+  parcels: Array<{
+    id: string;
+    trackingNumber: string;
+    stage: ParcelRow['stage'];
+    statusLabel: string | null;
+    statusMessage: string | null;
+    bookedAt: string | null;
+    deliveredAt: string | null;
+    codPaisa: string | null;
+    attempts: number;
+    lastFailureReason: string | null;
+    daysInTransit: number | null;
+    /** Null for a role that may not see the books. */
+    charges: Array<{ kind: string; amountPaisa: string }> | null;
+    payouts: Array<{ cprNumber: string; paidAt: string | null; amountPaisa: string }> | null;
+  }>;
+  history: Array<{ at: string; from: OrderState | null; to: OrderState; cause: string }>;
+  openItems: Array<{ id: string; kind: string; severity: string; detail: Record<string, unknown> }>;
+  /** Whether the caller may see the books; without it a missing profit is not "not yet". */
+  books: boolean;
+  profitPaisa: string | null;
+}
+
+/** How far the orders placed in a period got; each step is a subset of the one before it. */
+export interface OrderFunnelData {
+  placed: number;
+  confirmed: number;
+  booked: number;
+  inTransit: number;
+  delivered: number;
+  returned: number;
 }
 
 export interface ReturnRateRow {

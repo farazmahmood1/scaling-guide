@@ -1,60 +1,44 @@
 import { useState } from 'react';
-import { AlertTriangle, CalendarClock, ChevronLeft, ChevronRight, MessageCircle, Phone, RefreshCw, Save, X } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, MapPin, MessageCircle, Phone, Plus, RefreshCw, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/auth-context';
+import { useBrand } from '@/brand/brand-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { FactsSkeleton, Line, Loading, SmallLine, TableSkeleton, num } from '@/components/skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useApi } from '@/hooks/use-api';
-import {
-  type AgentPerformance,
-  type AttemptOutcome,
-  type Channel,
-  type ConfirmationState,
-  type CustomerHistory,
-  type DeskAlert,
-  type DeskOrder,
-  type DeskSettings,
-  type QueuePage,
-  type StoreKey,
-  apiPost,
-  apiPut,
-} from '@/lib/api';
-import {
-  CONFIRMATION_LABELS,
-  OUTCOME_LABELS,
-  describeItem,
-  formatKarachiTime,
-  formatPaisa,
-  fromNow,
-  karachiLocal,
-  karachiToIso,
-  kindLabel,
-  percent,
-} from '@/lib/format';
+import { type CustomerHistory, type DeskAlert, type DeskOrderPage, type QueuePage, type StoreKey, type TagEditResult, type TimelineEntry, apiPost, apiPut } from '@/lib/api';
+import { describeItem, formatKarachiTime, formatPaisa, fromNow, kindLabel, percent } from '@/lib/format';
+import { isStatusTag, sameTag, tagTone } from '@/lib/tags';
 
 const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
 const STORE_LABELS: Record<StoreKey, string> = { nur: 'NUR', organics: 'Organics' };
 
-/** What the queue's state filter offers; the first is the working queue. */
-const VIEWS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'pending,no_answer', label: 'To contact' },
-  { value: 'unreachable', label: 'Unreachable' },
-  { value: 'confirmed,changed', label: 'Confirmed, not booked' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
-
-const stateBadge = (state: ConfirmationState) => {
-  const variant = state === 'confirmed' || state === 'changed' ? 'default' : state === 'cancelled' || state === 'unreachable' ? 'destructive' : state === 'no_answer' ? 'outline' : 'secondary';
-  return <Badge variant={variant}>{CONFIRMATION_LABELS[state] ?? state}</Badge>;
-};
-
 const rate = (value: number | null) => (value === null ? '—' : percent(value));
+
+// ---- Tags ----
+
+const TONE_VARIANT = { confirmed: 'default', cancelled: 'destructive', status: 'secondary', other: 'outline' } as const;
+
+/** A Shopify tag. A tag another app added is shown quietly: it says nothing about the order's status. */
+function TagChip({ tag, statusTags, onRemove, disabled }: { tag: string; statusTags: readonly string[]; onRemove?: () => void; disabled?: boolean }) {
+  const tone = tagTone(tag, statusTags);
+  return (
+    <Badge variant={TONE_VARIANT[tone]} className={tone === 'other' ? 'font-normal text-muted-foreground' : ''}>
+      {tag}
+      {onRemove && (
+        <button type="button" className="-mr-1 ml-0.5 rounded-full p-0.5 hover:bg-black/10 disabled:opacity-50" onClick={onRemove} disabled={disabled} aria-label={`Remove ${tag}`}>
+          <X className="size-3" />
+        </button>
+      )}
+    </Badge>
+  );
+}
 
 // ---- Alerts ----
 
@@ -110,7 +94,11 @@ function HistoryCard({ history }: { history: CustomerHistory | null }) {
       </div>
       <p className="text-muted-foreground">
         {counts.orders === 0 ? 'First order from this number, on either brand.' : `${counts.orders} earlier order${counts.orders === 1 ? '' : 's'} on both brands; delivery rate ${rate(history.deliveryRate)}.`}
-        {city && ` Parcels to ${city.name} come back ${rate(city.returnRate)} of the time (${city.returned} of ${city.delivered + city.returned}).`}
+        {/* A city nobody has delivered to yet (often a misspelling) has no rate to give. */}
+        {city &&
+          (city.returnRate === null
+            ? ` No finished parcels to "${city.name}" yet, so no city return rate.`
+            : ` Parcels to ${city.name} come back ${rate(city.returnRate)} of the time (${city.returned} of ${city.delivered + city.returned}).`)}
       </p>
       {history.orders.length > 0 && (
         <ul className="max-h-40 space-y-1 overflow-y-auto text-xs">
@@ -130,207 +118,249 @@ function HistoryCard({ history }: { history: CustomerHistory | null }) {
   );
 }
 
-const DECISIONS: ReadonlyArray<{ outcome: Exclude<AttemptOutcome, 'rescheduled'>; label: string; needs?: 'reason' | 'time'; variant: 'default' | 'outline' | 'destructive' }> = [
-  { outcome: 'confirmed', label: 'Confirmed', variant: 'default' },
-  { outcome: 'changed', label: 'Confirmed with changes', needs: 'reason', variant: 'outline' },
-  { outcome: 'no_answer', label: 'No answer', variant: 'outline' },
-  { outcome: 'callback', label: 'Call back at…', needs: 'time', variant: 'outline' },
-  { outcome: 'wrong_number', label: 'Wrong number', variant: 'outline' },
-  { outcome: 'cancelled', label: 'Cancelled', needs: 'reason', variant: 'destructive' },
-];
+function Timeline({ entries }: { entries: TimelineEntry[] }) {
+  if (entries.length === 0) return <p className="text-sm text-muted-foreground">Nothing on the timeline yet.</p>;
+  return (
+    <ol className="space-y-3 border-l pl-4 text-sm">
+      {entries.map((e, i) => (
+        <li key={i} className="relative">
+          <span className={`absolute top-1.5 -left-[21px] size-2 rounded-full ${e.source === 'platform' ? 'bg-brand-navy' : 'bg-muted-foreground/50'}`} aria-hidden />
+          <div>{e.text}</div>
+          <div className="text-xs text-muted-foreground">
+            {formatKarachiTime(e.at)}
+            {e.who && ` · ${e.who}`}
+            {e.source === 'platform' && ' · from this page'}
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
-function OrderPanel({ orderId, onClose, onRecorded }: { orderId: string; onClose: () => void; onRecorded: () => void }) {
-  const { data, error, loading, reload } = useApi<{ order: DeskOrder; history: CustomerHistory | null }>(`/api/v1/confirmations/orders/${orderId}`);
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h3 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{children}</h3>;
+}
+
+/** Shopify titles carry the marketing line after a dash: `Glow Lotion – A big no to dry skin`. */
+const splitTitle = (title: string): [string, string | null] => {
+  const m = /^(.+?)\s+[–—-]\s*(.+)$/.exec(title);
+  return m ? [m[1]!, m[2]!] : [title, null];
+};
+
+function OrderPanel({ orderId, onClose, onChanged }: { orderId: string; onClose: () => void; onChanged: () => void }) {
+  const { data, error, loading, reload } = useApi<DeskOrderPage>(`/api/v1/confirmations/orders/${orderId}`);
   // The server withholds the number from a role that may not see it; this makes the screen say so
   // instead of showing "No number", and shows nothing a number would have filled.
   const { can } = useAuth();
   const seesPhones = can('pii.phone');
-  const [channel, setChannel] = useState<Channel>('whatsapp');
-  const [reason, setReason] = useState('');
-  const [note, setNote] = useState('');
-  const [when, setWhen] = useState(() => karachiLocal(new Date(Date.now() + 2 * 3_600_000)));
   const [busy, setBusy] = useState(false);
 
-  const record = async (outcome: AttemptOutcome, needs?: 'reason' | 'time') => {
-    if (needs === 'reason' && !reason.trim()) {
-      toast.error(outcome === 'cancelled' ? 'Say why the customer cancelled' : 'Say what the customer changed');
-      return;
-    }
-    const at = needs === 'time' || outcome === 'rescheduled' ? karachiToIso(when) : null;
-    if ((needs === 'time' || outcome === 'rescheduled') && !at) {
-      toast.error('Pick a date and time');
-      return;
-    }
+  const change = async (edit: { add?: string[]; remove?: string[] }) => {
     setBusy(true);
     try {
-      if (outcome === 'rescheduled') {
-        await apiPost(`/api/v1/confirmations/orders/${orderId}/follow-up`, { at, ...(note.trim() ? { note } : {}) });
-      } else {
-        await apiPost(`/api/v1/confirmations/orders/${orderId}/attempts`, {
-          channel,
-          outcome,
-          ...(reason.trim() && needs === 'reason' ? { reason } : {}),
-          ...(note.trim() ? { note } : {}),
-          ...(at ? { followUpAt: at } : {}),
-        });
-      }
-      toast.success(`${data?.order.orderNumber ?? 'Order'}: ${OUTCOME_LABELS[outcome]}`);
-      setReason('');
-      setNote('');
+      const result = await apiPut<TagEditResult>(`/api/v1/confirmations/orders/${orderId}/tags`, edit);
+      if (result.status === 'written') toast.success(`${data?.order.orderNumber ?? 'Order'}: tags updated in Shopify`);
       reload();
-      onRecorded();
+      onChanged();
     } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Could not record it');
+      // Nothing was changed on either side: Shopify is the record, and it said no.
+      toast.error('Tags not changed', { description: cause instanceof Error ? cause.message : undefined });
     } finally {
       setBusy(false);
     }
   };
 
-  if (loading && !data) return <Skeleton className="h-96 w-full" />;
+  if (loading && !data) return <OrderPanelSkeleton />;
   if (error || !data) return <p className="text-sm text-brand-coral">Could not load the order: {error}</p>;
-  const { order, history } = data;
-  const decided = order.confirmation && ['confirmed', 'changed', 'cancelled'].includes(order.confirmation.state);
-  const open = !order.cancelledInShopify;
+  const { order, history, timeline, shopify } = data;
+  const editable = shopify.tagEditing && !order.cancelledInShopify && order.shopifyOrderId !== null;
+  const missing = order.statusTags.filter((t) => !order.tags.some((have) => sameTag(have, t)));
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>
-              {order.orderNumber} <span className="text-sm font-normal text-muted-foreground">{STORE_LABELS[order.store]}</span>
-            </CardTitle>
-            <CardDescription>
-              {formatPaisa(order.totalPaisa)} cash on delivery · placed {formatKarachiTime(order.placedAt)}
-            </CardDescription>
+    // Stays in view while the list beside it scrolls.
+    <Card className="gap-0 py-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+      <CardHeader className="border-b py-4">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="text-lg">{order.orderNumber}</CardTitle>
+              <Badge variant="outline">{STORE_LABELS[order.store]}</Badge>
+            </div>
+            <CardDescription className="mt-1">Placed {formatKarachiTime(order.placedAt)}</CardDescription>
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
+          <div className="text-right">
+            <div className="text-lg font-semibold tabular-nums">{formatPaisa(order.totalPaisa)}</div>
+            <div className="text-xs text-muted-foreground">cash on delivery</div>
+          </div>
+          <Button variant="ghost" size="icon-sm" className="-mr-2" onClick={onClose} aria-label="Close">
             <X className="size-4" />
           </Button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="space-y-1 text-sm">
-          <div className="font-medium">{order.customerName ?? 'Customer'}</div>
-          <div className="text-muted-foreground">
-            {seesPhones ? (order.phone ?? 'No number') : 'Phone number hidden for your role'} · {order.city ?? 'No city'}
-          </div>
-          <ul className="pt-1 text-xs text-muted-foreground">
-            {order.lines.map((line, i) => (
-              <li key={i}>
-                {line.qty} × {line.title} · {formatPaisa(line.totalPaisa)}
-              </li>
-            ))}
-          </ul>
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            {order.confirmation && stateBadge(order.confirmation.state)}
-            {order.confirmation?.source === 'shopify_tags' && <Badge variant="outline">from Shopify tags</Badge>}
-            {order.booked && <Badge variant="secondary">Booked with PostEx</Badge>}
-            {order.cancelledInShopify && <Badge variant="destructive">Cancelled in Shopify</Badge>}
-            {order.confirmation?.nextAttemptAt && <span className="text-xs text-muted-foreground">next try {fromNow(order.confirmation.nextAttemptAt)}</span>}
-          </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {order.booked && <Badge variant="secondary">Booked with PostEx</Badge>}
+          {order.cancelledInShopify && <Badge variant="destructive">Cancelled in Shopify</Badge>}
+          {order.shopifyUrl && (
+            <Button asChild size="sm" variant="outline" className="h-7">
+              <a href={order.shopifyUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-3.5" />
+                Open in Shopify
+              </a>
+            </Button>
+          )}
         </div>
+        {shopify.error && <p className="mt-2 text-xs text-brand-coral">Could not reach Shopify, so this is the order as last synced: {shopify.error}</p>}
+      </CardHeader>
 
-        {!seesPhones ? (
-          <p className="text-sm text-muted-foreground">Your role cannot see customers' phone numbers, so there is no way to contact them from here.</p>
-        ) : order.whatsappUrl && order.callUrl ? (
-          <div className="flex flex-wrap gap-2">
-            <Button asChild className="bg-[#1fa855] text-white hover:bg-[#1a9049]">
-              <a href={order.whatsappUrl} target="_blank" rel="noreferrer" onClick={() => setChannel('whatsapp')}>
-                <MessageCircle className="size-4" />
-                WhatsApp
-              </a>
-            </Button>
-            <Button asChild variant="outline">
-              <a href={order.callUrl} onClick={() => setChannel('call')}>
-                <Phone className="size-4" />
-                Call
-              </a>
-            </Button>
+      <CardContent className="space-y-6 py-5">
+        <section>
+          <SectionTitle>Shopify tags</SectionTitle>
+          <div className="flex flex-wrap gap-1.5">
+            {order.tags.length === 0 && <span className="text-sm text-muted-foreground">No tags yet: a new order.</span>}
+            {order.tags.map((tag) => (
+              <TagChip
+                key={tag}
+                tag={tag}
+                statusTags={order.statusTags}
+                disabled={busy}
+                {...(editable && isStatusTag(tag, order.statusTags) ? { onRemove: () => change({ remove: [tag] }) } : {})}
+              />
+            ))}
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No usable mobile number on this order: confirm it another way, or record it as a wrong number.</p>
-        )}
-
-        {open && (
-          <div className="space-y-3 rounded-lg border p-3">
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Contacted by</span>
-              {(['whatsapp', 'call'] as const).map((c) => (
-                <Button key={c} size="sm" variant={channel === c ? 'secondary' : 'ghost'} onClick={() => setChannel(c)}>
-                  {c === 'whatsapp' ? 'WhatsApp' : 'Call'}
-                </Button>
-              ))}
-            </div>
-            <Input placeholder="Reason or change (needed to cancel or change)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
-            <Input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} />
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Time (Karachi)</span>
-              <input type="datetime-local" className={selectClass} value={when} onChange={(e) => setWhen(e.target.value)} />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {DECISIONS.filter((d) => !decided || ['confirmed', 'changed', 'cancelled'].includes(d.outcome))
-                .filter((d) => !order.booked || d.outcome === 'changed' || d.outcome === 'cancelled')
-                .map((d) => (
-                  <Button key={d.outcome} size="sm" variant={d.variant} disabled={busy} onClick={() => record(d.outcome, d.needs)}>
-                    {d.label}
+          {editable && missing.length > 0 && (
+            <div className="mt-3 rounded-lg border bg-muted/30 p-3">
+              <p className="mb-2 text-xs text-muted-foreground">Add a tag. It is saved in Shopify straight away.</p>
+              <div className="flex flex-wrap gap-1.5">
+                {missing.map((tag) => (
+                  <Button key={tag} size="sm" variant="outline" className="h-7 bg-background" disabled={busy} onClick={() => change({ add: [tag] })}>
+                    <Plus className="size-3.5" />
+                    {tag}
                   </Button>
                 ))}
-              {!decided && !order.booked && (
-                <Button size="sm" variant="ghost" disabled={busy} onClick={() => record('rescheduled')}>
-                  <CalendarClock className="size-4" />
-                  Follow up at the time
-                </Button>
-              )}
+              </div>
             </div>
+          )}
+          {!shopify.tagEditing && <p className="mt-2 text-xs text-muted-foreground">Changing tags from here is switched off on the server. Change them in Shopify; they show here after the next sync.</p>}
+        </section>
+
+        <section>
+          <SectionTitle>Customer</SectionTitle>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 space-y-0.5 text-sm">
+              <div className="font-medium">{order.customerName ?? 'Customer'}</div>
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Phone className="size-3.5 shrink-0" />
+                {seesPhones ? (order.phone ?? 'No number') : 'Hidden for your role'}
+              </div>
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <MapPin className="size-3.5 shrink-0" />
+                {order.city ?? 'No city'}
+              </div>
+            </div>
+            {seesPhones && order.whatsappUrl && order.callUrl && (
+              <div className="flex gap-2">
+                <Button asChild size="sm" className="bg-[#1fa855] text-white hover:bg-[#1a9049]">
+                  <a href={order.whatsappUrl} target="_blank" rel="noreferrer">
+                    <MessageCircle className="size-4" />
+                    WhatsApp
+                  </a>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <a href={order.callUrl}>
+                    <Phone className="size-4" />
+                    Call
+                  </a>
+                </Button>
+              </div>
+            )}
           </div>
-        )}
+        </section>
 
-        <div>
-          <h3 className="mb-2 text-sm font-medium">Customer history, both brands</h3>
-          <HistoryCard history={history} />
-        </div>
-
-        {order.attempts.length > 0 && (
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Attempts</h3>
-            <ul className="space-y-2 text-xs">
-              {order.attempts.map((a) => (
-                <li key={a.id} className="border-l-2 pl-2">
-                  <div>
-                    <span className="font-medium">{OUTCOME_LABELS[a.outcome]}</span>
-                    {a.channel && <span className="text-muted-foreground"> · {a.channel === 'whatsapp' ? 'WhatsApp' : 'call'}</span>}
-                    <span className="text-muted-foreground">
-                      {' '}
-                      · {a.agent} · {formatKarachiTime(a.at)}
-                    </span>
+        <section>
+          <SectionTitle>
+            Items <span className="font-normal normal-case">({order.lines.reduce((n, l) => n + l.qty, 0)})</span>
+          </SectionTitle>
+          <ul className="divide-y rounded-lg border text-sm">
+            {order.lines.map((line, i) => {
+              const [name, detail] = splitTitle(line.title);
+              return (
+                <li key={i} className="flex items-start gap-3 px-3 py-2" title={line.title}>
+                  <span className="w-7 shrink-0 text-muted-foreground tabular-nums">{line.qty}×</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{name}</div>
+                    {detail && <div className="truncate text-xs text-muted-foreground">{detail}</div>}
                   </div>
-                  {a.followUpAt && <div className="text-muted-foreground">for {formatKarachiTime(a.followUpAt)}</div>}
-                  {a.reason && <div>{a.reason}</div>}
-                  {a.note && <div className="text-muted-foreground">{a.note}</div>}
+                  <span className="shrink-0 tabular-nums">{formatPaisa(line.totalPaisa)}</span>
                 </li>
-              ))}
-            </ul>
-          </div>
-        )}
+              );
+            })}
+          </ul>
+        </section>
+
+        <section>
+          <SectionTitle>Customer history, both brands</SectionTitle>
+          <HistoryCard history={history} />
+        </section>
+
+        <section>
+          <SectionTitle>Timeline</SectionTitle>
+          <Timeline entries={timeline} />
+        </section>
       </CardContent>
     </Card>
   );
 }
 
-// ---- Queue ----
+/** The order panel while its order loads: the heading, the tags, the customer and the history. */
+function OrderPanelSkeleton() {
+  return (
+    <Card>
+      <Loading label="Loading the order" className="flex flex-col gap-6">
+        <CardHeader>
+          <Skeleton className="h-5 w-40" />
+          <Line className="mt-1.5 w-64" />
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex flex-wrap gap-2">
+            {['w-28', 'w-20', 'w-24'].map((w, i) => (
+              <Skeleton key={i} className={`h-5 ${w} rounded-full`} />
+            ))}
+          </div>
+          <div className="space-y-1">
+            <Line className="w-36" />
+            <SmallLine className="w-60" />
+            <SmallLine className="w-48" />
+          </div>
+          <div>
+            <Line className="mb-2 w-48" />
+            <FactsSkeleton rows={3} />
+          </div>
+        </CardContent>
+      </Loading>
+    </Card>
+  );
+}
 
-function QueueTab() {
-  const [view, setView] = useState(VIEWS[0]!.value);
-  const [store, setStore] = useState<'' | StoreKey>('');
-  const [dueOnly, setDueOnly] = useState(false);
+// ---- The list ----
+
+/** `new` and `all`, or `tag:<tag>` for the orders carrying one tag. */
+type View = 'new' | 'all' | `tag:${string}`;
+
+function OrdersList() {
+  const [view, setView] = useState<View>('new');
+  const { brand: store } = useBrand();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [syncing, setSyncing] = useState(false);
+  // A brand changed in the sidebar is a filter change too: page 3 of one brand is not page 3 of the other.
+  const [pagedBrand, setPagedBrand] = useState(store);
+  if (pagedBrand !== store) {
+    setPagedBrand(store);
+    setPage(1);
+  }
   const [selected, setSelected] = useState<string>();
   const pageSize = 25;
   const query = new URLSearchParams({
-    state: view,
-    due: dueOnly ? 'now' : 'all',
+    ...(view.startsWith('tag:') ? { view: 'all', tag: view.slice(4) } : { view }),
     page: String(page),
     pageSize: String(pageSize),
     ...(store ? { store } : {}),
@@ -338,10 +368,24 @@ function QueueTab() {
   }).toString();
   const { data, error, loading, reload } = useApi<QueuePage>(`/api/v1/confirmations/queue?${query}`);
   const pages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
+  // The filter offers the tags of the brand in view, or both brands' when none is picked.
+  const filterTags = data ? [...new Set(store ? data.statusTags[store] : [...data.statusTags.nur, ...data.statusTags.organics])] : [];
   /** A filter change starts again from the first page. */
   const filter = <T,>(set: (value: T) => void) => (value: T) => {
     set(value);
     setPage(1);
+  };
+
+  const sync = async () => {
+    setSyncing(true);
+    try {
+      await apiPost('/api/v1/confirmations/refresh', {});
+      reload();
+    } catch (cause) {
+      toast.error('Could not sync from Shopify', { description: cause instanceof Error ? cause.message : undefined });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
@@ -351,37 +395,36 @@ function QueueTab() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <CardTitle>{data ? `${data.total} order${data.total === 1 ? '' : 's'}` : 'Orders'}</CardTitle>
-              <CardDescription>Due first. A retry after no answer waits for its time, inside desk hours.</CardDescription>
+              <CardDescription>{view === 'new' ? 'No status tag yet. Newest first.' : 'Not booked with PostEx yet. Newest first.'}</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
-              <RefreshCw className={loading ? 'size-4 animate-spin' : 'size-4'} />
-              Refresh
+            <Button variant="outline" size="sm" onClick={sync} disabled={syncing || loading} title="Read the last three days of orders from Shopify now">
+              <RefreshCw className={syncing || loading ? 'size-4 animate-spin' : 'size-4'} />
+              Sync from Shopify
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <select className={selectClass} value={view} onChange={(e) => filter(setView)(e.target.value)} aria-label="Show">
-              {VIEWS.map((v) => (
-                <option key={v.value} value={v.value}>
-                  {v.label}
-                </option>
-              ))}
+            <select className={selectClass} value={view} onChange={(e) => filter(setView)(e.target.value as View)} aria-label="Show">
+              <option value="new">New orders (no status tag)</option>
+              <option value="all">All not booked</option>
+              {filterTags.length > 0 && (
+                <optgroup label="Tagged">
+                  {filterTags.map((t) => (
+                    <option key={t} value={`tag:${t}`}>
+                      {t}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
-            <select className={selectClass} value={store} onChange={(e) => filter(setStore)(e.target.value as '' | StoreKey)} aria-label="Brand">
-              <option value="">Both brands</option>
-              <option value="nur">NUR by Juggun</option>
-              <option value="organics">Juggun&apos;s Organics</option>
-            </select>
-            <label className="flex items-center gap-1.5 text-sm">
-              <input type="checkbox" checked={dueOnly} onChange={(e) => filter(setDueOnly)(e.target.checked)} />
-              Due now
-            </label>
             <Input className="w-full sm:w-56" placeholder="Order number or phone" value={search} onChange={(e) => filter(setSearch)(e.target.value)} />
           </div>
         </CardHeader>
         <CardContent>
-          {loading && !data && <Skeleton className="h-40 w-full" />}
-          {error && <p className="text-sm text-brand-coral">Could not load the queue: {error}</p>}
-          {data && data.rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nothing here. Every order in this view is done.</p>}
+          {loading && !data && (
+            <TableSkeleton variant="ui" rows={8} label="Loading the orders" columns={[{ header: 'Order', sub: true }, { header: 'Customer', sub: true }, num('COD'), { header: 'Tags', as: 'badge' }, 'History']} />
+          )}
+          {error && <p className="text-sm text-brand-coral">Could not load the orders: {error}</p>}
+          {data && data.rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{view === 'new' ? 'No new orders. Every order has a status tag.' : 'No orders here.'}</p>}
           {data && data.rows.length > 0 && (
             <>
               <div className="overflow-x-auto">
@@ -391,18 +434,13 @@ function QueueTab() {
                       <TableHead>Order</TableHead>
                       <TableHead>Customer</TableHead>
                       <TableHead className="text-right">COD</TableHead>
-                      <TableHead>State</TableHead>
-                      <TableHead>Next</TableHead>
+                      <TableHead>Tags</TableHead>
                       <TableHead>History</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.rows.map((row) => (
-                      <TableRow
-                        key={row.orderId}
-                        className={`cursor-pointer ${selected === row.orderId ? 'bg-muted' : ''}`}
-                        onClick={() => setSelected(row.orderId)}
-                      >
+                      <TableRow key={row.orderId} className={`cursor-pointer ${selected === row.orderId ? 'bg-muted' : ''}`} onClick={() => setSelected(row.orderId)}>
                         <TableCell>
                           <div className="font-medium">{row.orderNumber}</div>
                           <div className="text-xs text-muted-foreground">
@@ -417,11 +455,9 @@ function QueueTab() {
                         </TableCell>
                         <TableCell className="text-right whitespace-nowrap">{formatPaisa(row.totalPaisa)}</TableCell>
                         <TableCell>
-                          {stateBadge(row.state)}
-                          {row.attempts > 0 && <div className="pt-1 text-xs text-muted-foreground">{row.attempts} attempt{row.attempts === 1 ? '' : 's'}</div>}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-xs">
-                          {row.nextAttemptAt ? (row.due ? <Badge variant="secondary">Due</Badge> : fromNow(row.nextAttemptAt)) : '—'}
+                          <div className="flex max-w-72 flex-wrap gap-1">
+                            {row.tags.length === 0 ? <span className="text-xs text-muted-foreground">—</span> : row.tags.map((t) => <TagChip key={t} tag={t} statusTags={data.statusTags[row.store]} />)}
+                          </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-xs">
                           <span title="Delivered">✓ {row.history.delivered}</span>{' '}
@@ -451,11 +487,10 @@ function QueueTab() {
       </Card>
       <div className="min-w-0">
         {selected ? (
-          // Keyed by order, so a half-typed reason never carries over to the next customer.
-          <OrderPanel key={selected} orderId={selected} onClose={() => setSelected(undefined)} onRecorded={reload} />
+          <OrderPanel key={selected} orderId={selected} onClose={() => setSelected(undefined)} onChanged={reload} />
         ) : (
           <Card>
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">Pick an order to contact the customer and record what they said.</CardContent>
+            <CardContent className="py-10 text-center text-sm text-muted-foreground">Pick an order to see its tags, the customer's history and the Shopify timeline.</CardContent>
           </Card>
         )}
       </div>
@@ -463,191 +498,20 @@ function QueueTab() {
   );
 }
 
-// ---- Agents ----
-
-function AgentsTab() {
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const query = new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) }).toString();
-  const { data, error, loading } = useApi<{ agents: AgentPerformance[] }>(`/api/v1/confirmations/agents?${query}`);
-  return (
-    <Card>
-      <CardHeader className="flex-row flex-wrap items-end justify-between gap-3 space-y-0">
-        <div>
-          <CardTitle>Agent performance</CardTitle>
-          <CardDescription>Attempts in the period. Returned is what happened to the parcels of the orders each agent confirmed.</CardDescription>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <input type="date" className={selectClass} value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From" />
-          <span className="text-muted-foreground">to</span>
-          <input type="date" className={selectClass} value={to} onChange={(e) => setTo(e.target.value)} aria-label="To" />
-        </div>
-      </CardHeader>
-      <CardContent>
-        {loading && !data && <Skeleton className="h-24 w-full" />}
-        {error && <p className="text-sm text-brand-coral">{error}</p>}
-        {data && data.agents.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No attempts in this period.</p>}
-        {data && data.agents.length > 0 && (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Agent</TableHead>
-                  <TableHead className="text-right">Contacts</TableHead>
-                  <TableHead className="text-right">Orders</TableHead>
-                  <TableHead className="text-right">Confirmed</TableHead>
-                  <TableHead className="text-right">Cancelled</TableHead>
-                  <TableHead className="text-right">No answer</TableHead>
-                  <TableHead className="text-right">Unreachable</TableHead>
-                  <TableHead className="text-right">Confirmation rate</TableHead>
-                  <TableHead className="text-right">First contact</TableHead>
-                  <TableHead className="text-right">Returned</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.agents.map((a) => (
-                  <TableRow key={a.agentId}>
-                    <TableCell className="font-medium">{a.name}</TableCell>
-                    <TableCell className="text-right">{a.contacts}</TableCell>
-                    <TableCell className="text-right">{a.ordersWorked}</TableCell>
-                    <TableCell className="text-right">{a.confirmed + a.changed}</TableCell>
-                    <TableCell className="text-right">{a.cancelled}</TableCell>
-                    <TableCell className="text-right">{a.noAnswer}</TableCell>
-                    <TableCell className="text-right">{a.unreachable}</TableCell>
-                    <TableCell className="text-right">{rate(a.confirmationRate)}</TableCell>
-                    <TableCell className="text-right">{a.medianMinutesToFirstContact === null ? '—' : `${a.medianMinutesToFirstContact} min`}</TableCell>
-                    <TableCell className="text-right">
-                      {rate(a.outcomes.returnRate)}
-                      <span className="text-xs text-muted-foreground"> ({a.outcomes.returned}/{a.outcomes.delivered + a.outcomes.returned})</span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---- Settings ----
-
-const PLACEHOLDERS = ['{firstName}', '{name}', '{orderNumber}', '{total}', '{items}', '{city}', '{store}'];
-
-function SettingsTab() {
-  const { data, error, reload } = useApi<{ confirmationDesk: DeskSettings }>('/api/v1/settings/confirmation-desk');
-  if (error) return <p className="text-sm text-brand-coral">{error}</p>;
-  if (!data) return <Skeleton className="h-64 w-full" />;
-  return <SettingsForm key={JSON.stringify(data.confirmationDesk)} saved={data.confirmationDesk} onSaved={reload} />;
-}
-
-function SettingsForm({ saved, onSaved }: { saved: DeskSettings; onSaved: () => void }) {
-  const [draft, setDraft] = useState<DeskSettings>(saved);
-  const [retry, setRetry] = useState(saved.retryMinutes.join(', '));
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    const retryMinutes = retry.split(/[\s,]+/).filter(Boolean).map(Number);
-    if (retryMinutes.length === 0 || retryMinutes.some((m) => !Number.isInteger(m) || m < 5)) {
-      toast.error('Retry delays are whole minutes, 5 or more, separated by commas');
-      return;
-    }
-    setSaving(true);
-    try {
-      await apiPut('/api/v1/settings/confirmation-desk', { ...draft, retryMinutes });
-      toast.success('Desk settings saved');
-      onSaved();
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Could not save');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Desk settings</CardTitle>
-        <CardDescription>How often an unanswered customer is tried again, when the desk works, and what the WhatsApp message says.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5 text-sm">
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2">
-            Unreachable after
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              className="w-20"
-              value={draft.maxAttempts}
-              onChange={(e) => setDraft({ ...draft, maxAttempts: Number(e.target.value) })}
-            />
-            unanswered attempts
-          </label>
-          <label className="flex items-center gap-2">
-            Retry after (minutes)
-            <Input className="w-32" value={retry} onChange={(e) => setRetry(e.target.value)} />
-          </label>
-          <label className="flex items-center gap-2">
-            Desk hours (Karachi)
-            <input type="time" className={selectClass} value={draft.deskHours.open} onChange={(e) => setDraft({ ...draft, deskHours: { ...draft.deskHours, open: e.target.value } })} />
-            –
-            <input type="time" className={selectClass} value={draft.deskHours.close} onChange={(e) => setDraft({ ...draft, deskHours: { ...draft.deskHours, close: e.target.value } })} />
-          </label>
-        </div>
-        {(['nur', 'organics'] as const).map((store) => (
-          <div key={store} className="space-y-1">
-            <div className="font-medium">WhatsApp message, {store === 'nur' ? 'NUR by Juggun' : "Juggun's Organics"}</div>
-            <textarea
-              className="min-h-24 w-full rounded-lg border bg-background p-2 text-sm"
-              value={draft.whatsappTemplates[store]}
-              maxLength={1000}
-              onChange={(e) => setDraft({ ...draft, whatsappTemplates: { ...draft.whatsappTemplates, [store]: e.target.value } })}
-            />
-          </div>
-        ))}
-        <p className="text-xs text-muted-foreground">Placeholders: {PLACEHOLDERS.join(' ')}. Anything else in braces is refused.</p>
-        <Button onClick={save} disabled={saving}>
-          <Save className="size-4" />
-          Save
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
 /**
- * The Confirmation Desk (Step 11): agents work the queue, open an order, message or call the
- * customer from it, and record what happened. The history card shows how this number's earlier
- * parcels went, on both brands, and how often parcels to the city come back.
+ * The Confirmations page: new orders, with their Shopify tags. Customers confirm on WhatsApp and
+ * the store's automation tags the order; anything else is tagged here or in Shopify. Shopify is the
+ * record either way: a tag changed here is changed in Shopify, and one changed there shows here.
  */
 export function ConfirmationsPage() {
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Confirmation Desk</h1>
-        <p className="text-sm text-muted-foreground">
-          Confirm every cash-on-delivery order before it is booked. No answer is retried automatically; after the last try the order is unreachable.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">Confirmations</h1>
+        <p className="text-sm text-muted-foreground">New orders nobody has tagged yet. Tags are Shopify's own: a change here is saved in Shopify, and a change in Shopify shows here.</p>
       </div>
       <AlertsCard />
-      <Tabs defaultValue="queue">
-        <TabsList>
-          <TabsTrigger value="queue">Queue</TabsTrigger>
-          <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-        <TabsContent value="queue">
-          <QueueTab />
-        </TabsContent>
-        <TabsContent value="agents">
-          <AgentsTab />
-        </TabsContent>
-        <TabsContent value="settings">
-          <SettingsTab />
-        </TabsContent>
-      </Tabs>
+      <OrdersList />
     </>
   );
 }

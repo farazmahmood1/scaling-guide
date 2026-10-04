@@ -6,7 +6,7 @@ import { useAuth } from '@/auth/auth-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import { type Role, type RoleMatrix, type UserAccount, apiPatch, apiPost } from '@/lib/api';
 import { PERMISSION_GROUPS, generatePassword, holds, passwordProblem } from '@/lib/accounts';
@@ -279,7 +279,9 @@ export function UsersAdmin() {
           Could not load the users: {users.error}
         </p>
       )}
-      {!users.data && !users.error && <Skeleton className="h-32 w-full" />}
+      {!users.data && !users.error && (
+        <TableSkeleton rows={4} label="Loading the users" columns={[{ header: 'Person', sub: true }, { header: 'Role', as: 'control' }, { header: 'Status', as: 'badge' }, { as: 'button', align: 'right' }]} />
+      )}
       {roles.length > 0 && <CreateUser roles={roles} onDone={users.reload} />}
       {users.data && roles.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">
@@ -312,7 +314,7 @@ export function UsersAdmin() {
       <section aria-label="What each role may do">
         <h3 className="mb-1 font-semibold">What each role may do</h3>
         <p className="mb-2 text-sm text-muted-foreground">This is the table the server enforces on every request, not a description of it.</p>
-        {matrix.data ? <RoleMatrixTable matrix={matrix.data} /> : <Skeleton className="h-40 w-full" />}
+        {matrix.data ? <RoleMatrixTable matrix={matrix.data} /> : <TableSkeleton rows={8} label="Loading the roles" columns={['Permission', ...Array.from({ length: 5 }, () => ({ header: '', align: 'center' as const }))]} />}
       </section>
     </div>
   );

@@ -1,6 +1,7 @@
 import { PackageX } from 'lucide-react';
 import { Link } from 'react-router';
 
+import { useBrand } from '@/brand/brand-context';
 import { Button } from '@/components/ui/button';
 import { useApi } from '@/hooks/use-api';
 import type { AwaitingReturn } from '@/lib/api';
@@ -11,7 +12,8 @@ import type { AwaitingReturn } from '@/lib/api';
  * Shown wherever parcels are worked; nothing when there is nothing waiting.
  */
 export function ReturnsAlert({ waiting: override, onOpen = true }: { waiting?: number; onOpen?: boolean }) {
-  const { data } = useApi<{ returns: AwaitingReturn[] }>('/api/v1/stock/returns-awaiting');
+  const { brand } = useBrand();
+  const { data } = useApi<{ returns: AwaitingReturn[] }>(`/api/v1/stock/returns-awaiting${brand ? `?store=${brand}` : ''}`);
   if (!data) return null;
   const waiting = override ?? data.returns.length;
   if (waiting === 0) return null;

@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle2, MinusCircle, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ListSkeleton, SmallLine } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import type { ConnectionHealth, IntegrationHealth } from '@/lib/api';
 
@@ -43,11 +43,17 @@ export function IntegrationStatus() {
           Check again
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-h-0 flex-1 overflow-auto">
         {loading && (
-          <div className="space-y-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
+          <div className="grid gap-6 sm:grid-cols-2">
+            {['Shopify', 'PostEx'].map((side) => (
+              <div key={side}>
+                <div aria-hidden>
+                  <SmallLine className="mb-1 w-20" />
+                </div>
+                <ListSkeleton rows={2} trailing="badge" rowClassName="py-2.5" label={`Checking ${side}`} />
+              </div>
+            ))}
           </div>
         )}
 

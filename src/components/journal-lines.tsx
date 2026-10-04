@@ -7,7 +7,7 @@ import { ClosedMark } from '@/components/closed-period';
 import { EntryDetail } from '@/components/entry-detail';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton, num } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import type { DrillSpec, JournalLinesPage } from '@/lib/api';
 import { downloadText } from '@/lib/csv';
@@ -168,7 +168,7 @@ export function JournalLines({ drill, scope, title, closed, onClose }: { drill: 
             </Button>
           </div>
         )}
-        {!data && !error && <Skeleton className="h-32 w-full" />}
+        {!data && !error && <TableSkeleton rows={8} footer label="Loading the lines" columns={['Date', 'Entry', 'Account', { header: 'What', sub: true }, num('Debit'), num('Credit')]} />}
         {data && data.total === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nothing was posted for this.</p>}
         {data && data.total > 0 && <LinesTable data={data} title={title} closed={closed} dim={loading} />}
 

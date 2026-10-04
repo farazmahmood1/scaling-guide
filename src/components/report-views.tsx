@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { ClosedMark } from '@/components/closed-period';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { type SkeletonColumn, TableSkeleton, num } from '@/components/skeletons';
 import { useApi } from '@/hooks/use-api';
 import type { DrillSpec, PartnerLedgerRow, Pnl, TrialBalanceReport } from '@/lib/api';
 import { downloadText } from '@/lib/csv';
@@ -45,9 +45,9 @@ function Figure({ paisa, onClick, label, strong }: { paisa: string; onClick?: ()
   );
 }
 
-function Loading({ error, loading, hasData }: { error?: string; loading: boolean; hasData: boolean }) {
+function Loading({ error, loading, hasData, columns, rows = 8, footer = true }: { error?: string; loading: boolean; hasData: boolean; /** The report's columns, for its shape while it loads. */ columns: ReadonlyArray<string | SkeletonColumn>; rows?: number; footer?: boolean }) {
   if (error && !hasData) return <p role="alert" className="text-sm text-brand-coral">Could not load the report: {error}</p>;
-  if (loading && !hasData) return <Skeleton className="h-48 w-full" />;
+  if (loading && !hasData) return <TableSkeleton rows={rows} footer={footer} label="Loading the report" columns={columns} />;
   return null;
 }
 
@@ -85,7 +85,7 @@ export function PnlView({ scope, closed, onDrill }: ViewProps) {
           Export CSV
         </Button>
       </div>
-      <Loading error={error} loading={loading} hasData={!!data} />
+      <Loading columns={[{}, { align: 'right' }]} error={error} loading={loading} hasData={!!data} />
       {data && data.rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nothing was posted in this period.</p>}
 
       {data && !byMonth && data.rows.length > 0 && (
@@ -194,7 +194,7 @@ export function TrialBalanceView({ scope, onDrill }: ViewProps) {
           Export CSV
         </Button>
       </div>
-      <Loading error={error} loading={loading} hasData={!!data} />
+      <Loading columns={['Account', num('Opening'), num('Debit'), num('Credit'), num('Closing')]} error={error} loading={loading} hasData={!!data} />
       {data && data.rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nothing was posted yet.</p>}
       {data && data.rows.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">
@@ -258,7 +258,7 @@ export function PartnerLedgerView({ scope, onDrill }: ViewProps) {
           Export CSV
         </Button>
       </div>
-      <Loading error={error} loading={loading} hasData={!!data} />
+      <Loading columns={[{ header: 'Partner', sub: true }, num('Opening'), num('Debit'), num('Credit'), num('Closing')]} rows={4} footer={false} error={error} loading={loading} hasData={!!data} />
       {data && data.rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No partner balances yet.</p>}
       {data && data.rows.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">

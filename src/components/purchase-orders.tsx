@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Line, TableSkeleton, num } from '@/components/skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/use-api';
 import { type OrderStatus, type PurchaseOrderDetail, type PurchaseOrderSummary, type StoreKey, type Vendor, type VariantHit, apiPost } from '@/lib/api';
@@ -24,7 +25,7 @@ export function OrdersList({ statuses, selected, onSelect, reloadKey }: { status
   const orders = (data?.orders ?? []).filter((o) => !statuses || statuses.includes(o.status));
   return (
     <div>
-      {loading && !data && <Skeleton className="h-16 w-full" />}
+      {loading && !data && <TableSkeleton rows={4} label="Loading the orders" columns={[{ header: 'Order', sub: true }, 'Vendor', { header: 'Status', as: 'badge' }, num('Received'), num('Value')]} />}
       {error && !data && <p className="text-sm text-brand-coral">Could not load orders: {error}</p>}
       {data && orders.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nothing here.</p>}
       {orders.length > 0 && (
@@ -304,7 +305,7 @@ function BillForm({ order, onDone }: { order: PurchaseOrderDetail; onDone: () =>
 
 /** One order, with what has arrived and been billed against each line, and the action for the step. */
 export function OrderDetail({ poId, focus, onChanged }: { poId: string; focus: 'order' | 'receive' | 'bill'; onChanged: () => void }) {
-  const { data, error, loading, reload } = useApi<{ order: PurchaseOrderDetail }>(`/api/v1/purchasing/orders/${poId}`);
+  const { data, error, reload } = useApi<{ order: PurchaseOrderDetail }>(`/api/v1/purchasing/orders/${poId}`);
   const [cancelling, setCancelling] = useState(false);
   const order = data?.order;
   const changed = () => {
@@ -326,7 +327,21 @@ export function OrderDetail({ poId, focus, onChanged }: { poId: string; focus: '
   };
 
   if (error && !order) return <p className="text-sm text-brand-coral">Could not load the order: {error}</p>;
-  if (!order) return <Skeleton className="h-40 w-full" aria-busy={loading} />;
+  if (!order)
+    return (
+      <Card>
+        <CardHeader className="flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+          <div aria-hidden>
+            <Skeleton className="h-5 w-56 max-w-full" />
+            <Line className="mt-1.5 w-72" />
+          </div>
+          <Skeleton aria-hidden className="h-5 w-20 rounded-full" />
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <TableSkeleton rows={3} label="Loading the order" columns={['Product', num('Ordered'), num('Received'), num('Billed'), num('Unit cost')]} />
+        </CardContent>
+      </Card>
+    );
   const cancellable = order.status === 'ordered';
   return (
     <Card>

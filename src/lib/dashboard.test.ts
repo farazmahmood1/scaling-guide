@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { BreakdownRow, RateFigure, ReturnRateRow } from '@/lib/api';
-import { DEFINITIONS, MIN_CITY_OUTCOMES, asOfText, compactRupees, monthTrend, periodText, plotRupees, rangeFor, rankCities, rateBasis, rateText, rateTrend, returnedParcelsLink, tileLinks, trendWindow } from '@/lib/dashboard';
+import type { BreakdownRow, OrderFunnelData, ProductReportRow, RateFigure, ReturnRateRow } from '@/lib/api';
+import { DEFAULT_RANGE, DEFINITIONS, MIN_CITY_OUTCOMES, asOfText, compactRupees, customPeriod, funnelPoints, monthTrend, topProducts, periodText, plotRupees, rangeFor, rankCities, rateBasis, rateText, rateTrend, returnedParcelsLink, shareText, tileLinks, trendWindow } from '@/lib/dashboard';
 
 describe('periods', () => {
   const today = '2026-09-17';
@@ -18,6 +18,15 @@ describe('periods', () => {
     expect(rangeFor('30d', '2027-01-09')).toEqual({ from: '2026-12-11', to: '2027-01-09' });
     expect(trendWindow('2027-02-10')).toEqual({ from: '2026-09-01', to: '2027-02-10' });
     expect(trendWindow('2026-09-17')).toEqual({ from: '2026-04-01', to: '2026-09-17' });
+  });
+
+  it('takes a hand-picked period only when both ends are real days in order', () => {
+    expect(customPeriod('2026-08-01', '2026-08-15')).toEqual({ from: '2026-08-01', to: '2026-08-15' });
+    expect(customPeriod('2026-08-15', '2026-08-15')).toEqual({ from: '2026-08-15', to: '2026-08-15' });
+    expect(customPeriod('2026-08-15', '2026-08-01')).toBeNull();
+    expect(customPeriod('2026-08-01', null)).toBeNull();
+    expect(customPeriod('2026-02-30', '2026-03-05')).toBeNull();
+    expect(customPeriod('yesterday', '2026-03-05')).toBeNull();
   });
 
   it('says a period in words, with the year', () => {
@@ -94,31 +103,100 @@ describe('chart data', () => {
 
 describe('where each figure\'s report is', () => {
   const today = '2026-09-17';
-  const links = tileLinks({ range: 'month', store: 'nur' }, '2026-09-17', today);
+  const links = tileLinks({ range: 'month' }, '2026-09-17', today);
 
-  it('opens each tile on its own period and brand', () => {
-    expect(links.revenue).toBe('/reports?tab=general-ledger&account=4000&from=2026-09-01&to=2026-09-17&store=nur');
-    expect(links.profit).toBe('/reports?from=2026-09-01&to=2026-09-17&store=nur');
-    expect(links.returnRate).toBe('/parcels?stage=returned&from=2026-09-01&to=2026-09-17&store=nur');
-    expect(links.deliverySuccess).toBe('/parcels?stage=delivered&from=2026-09-01&to=2026-09-17&store=nur');
+  it('opens each tile on its own period, and leaves the brand to the sidebar', () => {
+    expect(links.revenue).toBe('/reports?tab=general-ledger&account=4000&from=2026-09-01&to=2026-09-17');
+    expect(links.profit).toBe('/reports?from=2026-09-01&to=2026-09-17');
+    expect(links.returnRate).toBe('/parcels?stage=returned&from=2026-09-01&to=2026-09-17');
+    expect(links.deliverySuccess).toBe('/parcels?stage=delivered&from=2026-09-01&to=2026-09-17');
+    for (const href of Object.values(links)) expect(href).not.toContain('store=');
   });
 
   it('opens the cash ledger from the start up to the day the figure is as of', () => {
-    expect(links.cash).toBe('/reports?tab=general-ledger&account=1100&from=2000-01-01&to=2026-09-17&store=nur');
+    expect(links.cash).toBe('/reports?tab=general-ledger&account=1100&from=2000-01-01&to=2026-09-17');
+  });
+
+  it('opens each tile on a hand-picked period, whatever the named range says', () => {
+    const picked = tileLinks({ range: 'all', custom: { from: '2026-08-01', to: '2026-08-15' } }, '2026-08-15', today);
+    expect(picked.profit).toBe('/reports?from=2026-08-01&to=2026-08-15');
+    expect(picked.returnRate).toBe('/parcels?stage=returned&from=2026-08-01&to=2026-08-15');
   });
 
   it('marks all time for the Reports screen, and leaves the flag off the parcels list', () => {
-    const all = tileLinks({ range: 'all', store: null }, '2026-09-17', today);
+    const all = tileLinks({ range: 'all' }, '2026-09-17', today);
     expect(all.profit).toBe('/reports?all=1');
     expect(all.returnRate).toBe('/parcels?stage=returned');
-    expect(returnedParcelsLink({ from: '2026-09-01', to: '2026-09-17' }, null, 'Lahore')).toBe('/parcels?stage=returned&city=Lahore&from=2026-09-01&to=2026-09-17');
+    expect(returnedParcelsLink({ from: '2026-09-01', to: '2026-09-17' }, 'Lahore')).toBe('/parcels?stage=returned&city=Lahore&from=2026-09-01&to=2026-09-17');
   });
 });
 
 describe('definitions', () => {
   it('has a definition for every figure, none of them empty', () => {
-    for (const key of ['revenue', 'netProfit', 'returnRate', 'deliverySuccess', 'firstAttempt', 'cash', 'ageing', 'profitPerParcel', 'trend', 'returnTrend', 'cityReturns', 'alerts', 'returnsAwaiting'] as const) {
+    for (const key of ['revenue', 'netProfit', 'returnRate', 'deliverySuccess', 'firstAttempt', 'cash', 'ageing', 'profitPerParcel', 'trend', 'returnTrend', 'cityReturns', 'funnel', 'topProducts', 'queue', 'recentOrders', 'alerts', 'returnsAwaiting'] as const) {
       expect(DEFINITIONS[key].length, key).toBeGreaterThan(40);
     }
+  });
+});
+
+describe('the parcel funnel', () => {
+  const funnel: OrderFunnelData = { placed: 128, confirmed: 109, booked: 96, inTransit: 71, delivered: 64, returned: 14 };
+
+  it('lists the six steps in order, each with its share of the orders placed', () => {
+    const points = funnelPoints(funnel);
+    expect(points.map((p) => [p.label, p.count])).toEqual([['Placed', 128], ['Confirmed', 109], ['Booked', 96], ['In transit', 71], ['Delivered', 64], ['Returned', 14]]);
+    expect(points[0]?.share).toBe(1);
+    expect(shareText(points[1]!.share)).toBe('85.2%');
+    expect(shareText(points[5]!.share)).toBe('10.9%');
+  });
+
+  it('shows no share, rather than dividing by nothing, when no orders were placed', () => {
+    const points = funnelPoints({ placed: 0, confirmed: 0, booked: 0, inTransit: 0, delivered: 0, returned: 0 });
+    expect(points.every((p) => p.share === null)).toBe(true);
+    expect(shareText(null)).toBe('—');
+  });
+});
+
+describe('the top products', () => {
+  const row = (key: string, title: string, units: number, revenue = '1000000'): ProductReportRow => ({ key, store: 'nur', sku: null, title, units, revenue, goods: '0', grossProfit: revenue, parcels: 2 });
+
+  it('ranks by units sold, best seller first, and sizes the bars against it', () => {
+    const top = topProducts([row('a', 'Serum', 10), row('b', 'Cleanser', 40), row('c', 'Cream', 20)]);
+    expect(top.map((p) => p.title)).toEqual(['Cleanser', 'Cream', 'Serum']);
+    expect(top.map((p) => p.share)).toEqual([1, 0.5, 0.25]);
+  });
+
+  it('ranks by units, not by money: a cheap product that sells most is the top one', () => {
+    const top = topProducts([row('dear', 'Dear serum', 5, '9000000'), row('cheap', 'Lip balm', 50, '500000')]);
+    expect(top.map((p) => [p.title, p.revenue])).toEqual([['Lip balm', '500000'], ['Dear serum', '9000000']]);
+  });
+
+  it('leaves out the rows that are not products, a product with nothing left sold, and all but the top five', () => {
+    const rows = [row('unmapped', '(items not linked to a product)', 900), row('no_lines', '(parcels whose order has no lines)', 800), row('x', 'All returned', 0), row('y', 'More returned than sold', -2)];
+    for (let i = 0; i < 7; i++) rows.push(row(String(i), `Product ${i}`, 10 + i));
+    const top = topProducts(rows);
+    expect(top).toHaveLength(5);
+    expect(top.map((p) => p.key)).toEqual(['6', '5', '4', '3', '2']);
+  });
+
+  it('shows nothing for an empty report', () => {
+    expect(topProducts([])).toEqual([]);
+  });
+
+  it('drops the "Default Title" Shopify gives a product with one variant, and keeps a real variant name', () => {
+    const top = topProducts([row('a', 'Anti Aging Cream · Default Title', 20), row('b', 'Serum · 30 ml', 10)]);
+    expect(top.map((p) => p.title)).toEqual(['Anti Aging Cream', 'Serum · 30 ml']);
+  });
+
+  it('breaks a tie by sales and then by name, so the order never shifts between loads', () => {
+    expect(topProducts([row('a', 'Alpha', 10, '100'), row('b', 'Beta', 10, '900')]).map((p) => p.title)).toEqual(['Beta', 'Alpha']);
+    expect(topProducts([row('b', 'Beta', 10, '100'), row('a', 'Alpha', 10, '100')]).map((p) => p.title)).toEqual(['Alpha', 'Beta']);
+  });
+});
+
+describe('the default period', () => {
+  it('is this month, and is one of the named ranges', () => {
+    expect(DEFAULT_RANGE).toBe('month');
+    expect(rangeFor(DEFAULT_RANGE, '2026-10-04')).toEqual({ from: '2026-10-01', to: '2026-10-04' });
   });
 });

@@ -1,6 +1,7 @@
 import { ClosedMark } from '@/components/closed-period';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Line, SmallLine, TableSkeleton, num } from '@/components/skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/use-api';
 import type { EntryDetail as Entry } from '@/lib/api';
@@ -15,7 +16,21 @@ import { sourceLabel } from '@/lib/ledger';
 export function EntryDetail({ entryId, onOpenEntry }: { entryId: string; onOpenEntry?: (id: string) => void }) {
   const { data, error } = useApi<{ entry: Entry }>(`/api/v1/accounting/entries/${entryId}`);
   if (error && !data) return <p className="text-sm text-brand-coral">Could not load the entry: {error}</p>;
-  if (!data) return <Skeleton className="h-24 w-full" />;
+  if (!data)
+    return (
+      <div className="space-y-2 rounded-lg border bg-background p-3">
+        <div aria-hidden className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Line className="w-24" />
+            <Line className="w-20" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+          </div>
+          <Line className="w-72" />
+          <SmallLine className="w-80" />
+        </div>
+        <TableSkeleton variant="plain" rows={2} label="Loading the entry" columns={['Account', 'Partner', 'Brand', num('Debit'), num('Credit')]} />
+      </div>
+    );
   const e = data.entry;
   const debit = e.lines.reduce((n, l) => n + BigInt(l.debit), 0n);
   const credit = e.lines.reduce((n, l) => n + BigInt(l.credit), 0n);

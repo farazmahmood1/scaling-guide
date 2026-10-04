@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { StaticRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
+import { AuthProvider } from '@/auth/auth-context';
 import { StatTile } from '@/components/dashboard-ui';
 import { alertRows } from '@/lib/alerts';
 import { OverviewPage } from '@/pages/overview';
@@ -9,7 +10,9 @@ import { OverviewPage } from '@/pages/overview';
 const page = (url = '/') =>
   renderToStaticMarkup(
     <StaticRouter location={url}>
-      <OverviewPage />
+      <AuthProvider>
+        <OverviewPage />
+      </AuthProvider>
     </StaticRouter>,
   );
 
@@ -35,15 +38,16 @@ describe('the dashboard\'s tiles', () => {
     for (const tile of tiles) expect(tile).toMatch(/<button[^>]*aria-label="What [^"]+ means"/);
   });
 
-  it('opens each tile\'s report on the period and brand chosen above', () => {
-    const chosen = page('/?range=year&store=organics');
-    expect(chosen).toMatch(/href="\/reports\?tab=general-ledger&amp;account=4000&amp;from=\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d&amp;store=organics"/);
-    expect(chosen).toMatch(/href="\/parcels\?stage=returned&amp;from=\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d&amp;store=organics"/);
+  it('opens each tile\'s report on the period chosen above, leaving the brand to the sidebar', () => {
+    const chosen = page('/?range=year');
+    expect(chosen).toMatch(/href="\/reports\?tab=general-ledger&amp;account=4000&amp;from=\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d"/);
+    expect(chosen).toMatch(/href="\/parcels\?stage=returned&amp;from=\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d"/);
+    expect(chosen).not.toContain('store=');
     expect(page('/?range=all')).toContain('href="/reports?all=1"');
   });
 
   it('puts a definition on each chart and on the alert summary, with the period each covers', () => {
-    for (const title of ['Revenue and profit by month', 'Cash with PostEx by age', 'Return rate by month', 'Return rate by city', 'Needs attention']) {
+    for (const title of ['Revenue and profit by month', 'Cash with PostEx by age', 'Return rate by month', 'Return rate by city', 'Parcel funnel', 'Needs attention']) {
       expect(html).toContain(title);
       expect(html).toContain(`aria-label="What ${title} means"`);
     }
@@ -51,18 +55,48 @@ describe('the dashboard\'s tiles', () => {
   });
 
   it('offers every chart as a table too', () => {
-    expect((html.match(/Show as a table/g) ?? []).length).toBe(4);
+    expect((html.match(/Show as a table/g) ?? []).length).toBe(5);
   });
 
-  it('has the brand and period controls, with the chosen ones marked', () => {
-    expect(html).toContain('aria-label="Brand"');
-    expect(html).toContain('aria-pressed="true"');
-    expect(page('/?range=all')).toMatch(/aria-pressed="true"[^>]*>All time/);
+  it('has the period control with the chosen one marked, and no brand control of its own', () => {
+    expect(html).toContain('aria-label="Period: This month"');
+    expect(page('/?range=all')).toContain('aria-label="Period: All time"');
+    // The brand is chosen once, in the sidebar; with none chosen the page says it covers both.
+    expect(html).not.toContain('aria-label="Brand');
+    expect(html).toContain('across both brands');
+  });
+
+  it('takes a custom period from the URL, shows its two dates, and carries it to the reports', () => {
+    const picked = page('/?range=year&from=2026-08-01&to=2026-08-15');
+    expect(picked).toContain('aria-label="Period: Custom"');
+    expect(picked).not.toContain('aria-label="Period: This year"');
+    expect(picked).toContain('Reset</button>');
+    expect(picked).toMatch(/<input[^>]*aria-label="From"[^>]*value="2026-08-01"/);
+    expect(picked).toMatch(/<input[^>]*aria-label="To"[^>]*value="2026-08-15"/);
+    expect(picked).toContain('1 Aug – 15 Aug 2026');
+    expect(picked).toContain('href="/parcels?stage=returned&amp;from=2026-08-01&amp;to=2026-08-15"');
+  });
+
+  it('opens on this month, and on any other named period the address asks for', () => {
+    expect(page('/')).toContain('aria-label="Period: This month"');
+    expect(page('/?range=30d')).toContain('aria-label="Period: Last 30 days"');
+    expect(page('/?range=year')).toContain('aria-label="Period: This year"');
+    // This month starts on the 1st of the current month in Karachi.
+    expect(page('/')).toMatch(/href="\/parcels\?stage=returned&amp;from=\d{4}-\d\d-01&amp;to=/);
+  });
+
+  it('shows no date fields and no Reset until Custom is chosen; a backwards period is not one', () => {
+    expect(html).not.toContain('aria-label="Period: Custom"');
+    expect(html).not.toContain('aria-label="From"');
+    expect(html).not.toContain('Reset</button>');
+    const backwards = page('/?from=2026-08-15&to=2026-08-01');
+    expect(backwards).not.toContain('aria-label="From"');
+    expect(backwards).toContain('aria-label="Period: This month"');
   });
 
   it('ignores a period or brand it does not know', () => {
     const odd = page('/?range=forever&store=nowhere');
-    expect(odd).toContain('Last 30 days');
+    expect(odd).toContain('This month');
     expect(odd).not.toContain('store=nowhere');
   });
 });

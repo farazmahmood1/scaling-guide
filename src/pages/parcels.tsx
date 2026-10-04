@@ -23,11 +23,12 @@ const SPEC_BASE: Omit<QuerySpec, 'multi'> = {
   pageSizes: [25, 50, 100],
   defaultPageSize: 25,
   columnKeys: COLUMN_KEYS,
+  screen: 'parcels',
   defaultHidden: ['attempts'],
 };
 
 // Cities come from the data, so the spec accepts any short value for them.
-const SPEC: QuerySpec = { ...SPEC_BASE, multi: { stage: STAGES, store: ['nur', 'organics'], flag: PARCEL_FLAGS, city: null } };
+const SPEC: QuerySpec = { ...SPEC_BASE, multi: { stage: STAGES, flag: PARCEL_FLAGS, city: null } };
 
 const flagBadges = (row: ParcelRow) => (
   <span className="flex gap-1">
@@ -63,8 +64,8 @@ const COLUMNS: Column<ParcelRow>[] = [
 ];
 
 /**
- * Every PostEx parcel: search by tracking number, order or phone, filter by status, store, city,
- * booking day and the flags people look for. The view is in the address, so it can be shared.
+ * Every PostEx parcel: search by tracking number, order or phone, filter by status, city, booking
+ * day and the flags people look for, within the sidebar's brand. The view is in the address, so it can be shared.
  */
 export function ParcelsPage() {
   const [query, setQuery] = useListQuery(SPEC);
@@ -75,7 +76,6 @@ export function ParcelsPage() {
   const filters = useMemo<MultiFilter[]>(
     () => [
       { key: 'stage', label: 'Status', options: STAGES.map((s) => ({ value: s, label: STAGE_LABELS[s] })) },
-      { key: 'store', label: 'Store', options: [{ value: 'nur', label: 'NUR by Juggun' }, { value: 'organics', label: "Juggun's Organics" }] },
       { key: 'flag', label: 'Flag', options: PARCEL_FLAGS.map((f) => ({ value: f, label: FLAG_LABELS[f] })) },
       { key: 'city', label: 'City', options: (cities.data?.cities ?? []).map((c) => ({ value: c.city, label: `${c.city} (${c.parcels})` })) },
     ],

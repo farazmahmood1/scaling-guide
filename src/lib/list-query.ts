@@ -32,6 +32,8 @@ export interface QuerySpec {
   defaultPageSize: number;
   columnKeys: readonly string[];
   defaultHidden?: readonly string[];
+  /** Saves the columns a person hides with their account, under this name, so the list opens that way again. */
+  screen?: string;
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -79,6 +81,13 @@ export const parseQuery = (params: URLSearchParams, spec: QuerySpec): ListQuery 
   if (params.has('hide')) query.hidden = list(params.get('hide')).filter((k) => spec.columnKeys.includes(k));
   return query;
 };
+
+/**
+ * The columns a person saved, for a URL that does not say which to hide. A link that does (one
+ * someone shared) is shown as it says. Saved keys the list no longer has are dropped.
+ */
+export const withSavedColumns = (query: ListQuery, params: URLSearchParams, spec: QuerySpec, saved: readonly string[] | undefined): ListQuery =>
+  saved && !params.has('hide') ? { ...query, hidden: saved.filter((k) => spec.columnKeys.includes(k)) } : query;
 
 /** The URL form of a query; defaults are left out, so a plain view has a plain URL. */
 export const toParams = (query: ListQuery, spec: QuerySpec): URLSearchParams => {
