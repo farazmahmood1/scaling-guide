@@ -6,6 +6,8 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // The backend URL is held in a variable named plain `VITE`, which the default `VITE_` prefix would not expose.
+  envPrefix: ['VITE_', 'VITE'],
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, './src') },
   },

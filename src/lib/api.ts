@@ -1,5 +1,5 @@
 /** Base URL for the backend. Empty in development, where Vite proxies /api to port 4000. */
-const API_BASE = import.meta.env.VITE_API_URL ?? '';
+const API_BASE = import.meta.env.VITE ?? '';
 const TOKEN_KEY = 'nur.session';
 export const UNAUTHORIZED_EVENT = 'nur:unauthorized';
 /** A request was refused for lack of permission: the person's role may have changed, so ask the server again. */

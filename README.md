@@ -27,17 +27,17 @@ Start the backend too (`cd ../backend && npm run dev`). Vite proxies `/api` to
 Only needed when the backend is somewhere other than `localhost:4000`:
 
 ```bash
-cp .env.example .env.local   # then set VITE_API_URL
+cp .env.example .env.local   # then set VITE
 ```
 
 ## Deployment (Vercel)
 
-The dashboard is deployed at `https://scaling-guide-flame.vercel.app`. `VITE_API_URL` is read at
+The dashboard is deployed at `https://scaling-guide-flame.vercel.app`. `VITE` is read at
 build time, so set it in the Vercel project settings to the backend's public URL, and add the
 Vercel origin to the backend's `CORS_ORIGIN`.
 
 Until the backend is public (it runs on localhost until the Render keys arrive), the deployed site
-cannot sign in: with no `VITE_API_URL`, its `/api` calls go to Vercel itself and get 404. Work
+cannot sign in: with no `VITE`, its `/api` calls go to Vercel itself and get 404. Work
 locally with `npm run dev` against the local backend instead.
 
 `vercel.json` rewrites every path except built assets to `index.html`, so a refresh or a shared
