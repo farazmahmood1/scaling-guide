@@ -14,7 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useApi } from '@/hooks/use-api';
 import { type CustomerHistory, type DeskAlert, type DeskOrderPage, type QueuePage, type StoreKey, type TagEditResult, type TimelineEntry, apiPost, apiPut } from '@/lib/api';
 import { describeItem, formatKarachiTime, formatPaisa, fromNow, kindLabel, percent } from '@/lib/format';
-import { isStatusTag, sameTag, tagTone } from '@/lib/tags';
+import { isStatusTag, sameTag } from '@/lib/tags';
+import { ShopifyAccessNotice } from '@/components/shopify-access-notice';
+import { TagChip } from '@/components/tag-chip';
 
 const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
 const STORE_LABELS: Record<StoreKey, string> = { nur: 'NUR', organics: 'Organics' };
@@ -22,23 +24,6 @@ const STORE_LABELS: Record<StoreKey, string> = { nur: 'NUR', organics: 'Organics
 const rate = (value: number | null) => (value === null ? '—' : percent(value));
 
 // ---- Tags ----
-
-const TONE_VARIANT = { confirmed: 'default', cancelled: 'destructive', status: 'secondary', other: 'outline' } as const;
-
-/** A Shopify tag. A tag another app added is shown quietly: it says nothing about the order's status. */
-function TagChip({ tag, statusTags, onRemove, disabled }: { tag: string; statusTags: readonly string[]; onRemove?: () => void; disabled?: boolean }) {
-  const tone = tagTone(tag, statusTags);
-  return (
-    <Badge variant={TONE_VARIANT[tone]} className={tone === 'other' ? 'font-normal text-muted-foreground' : ''}>
-      {tag}
-      {onRemove && (
-        <button type="button" className="-mr-1 ml-0.5 rounded-full p-0.5 hover:bg-black/10 disabled:opacity-50" onClick={onRemove} disabled={disabled} aria-label={`Remove ${tag}`}>
-          <X className="size-3" />
-        </button>
-      )}
-    </Badge>
-  );
-}
 
 // ---- Alerts ----
 
@@ -73,6 +58,13 @@ function AlertsCard() {
 
 // ---- One order ----
 
+const PARCEL_OUTCOME: Record<CustomerHistory['parcels'][number]['outcome'], string> = {
+  delivered: 'delivered',
+  refused: 'refused or returned',
+  cancelled: 'cancelled',
+  in_flight: 'still with PostEx',
+};
+
 function HistoryCard({ history }: { history: CustomerHistory | null }) {
   if (!history) return <p className="text-sm text-muted-foreground">No usable mobile number, so no history to show.</p>;
   const { counts, city } = history;
@@ -93,7 +85,9 @@ function HistoryCard({ history }: { history: CustomerHistory | null }) {
         </div>
       </div>
       <p className="text-muted-foreground">
-        {counts.orders === 0 ? 'First order from this number, on either brand.' : `${counts.orders} earlier order${counts.orders === 1 ? '' : 's'} on both brands; delivery rate ${rate(history.deliveryRate)}.`}
+        {counts.orders + counts.parcelsWithoutOrder === 0
+          ? 'First order from this number, on either brand.'
+          : `${counts.orders} earlier order${counts.orders === 1 ? '' : 's'} on both brands${counts.parcelsWithoutOrder > 0 ? ` and ${counts.parcelsWithoutOrder} PostEx parcel${counts.parcelsWithoutOrder === 1 ? '' : 's'} with no Shopify order` : ''}; delivery rate ${rate(history.deliveryRate)}.`}
         {/* A city nobody has delivered to yet (often a misspelling) has no rate to give. */}
         {city &&
           (city.returnRate === null
@@ -113,6 +107,23 @@ function HistoryCard({ history }: { history: CustomerHistory | null }) {
             </li>
           ))}
         </ul>
+      )}
+      {history.parcels.length > 0 && (
+        <div>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">PostEx parcels with no Shopify order (booked by hand, or older than the orders kept here)</p>
+          <ul className="max-h-32 space-y-1 overflow-y-auto text-xs">
+            {history.parcels.slice(0, 20).map((p) => (
+              <li key={p.shipmentId} className="flex justify-between gap-2">
+                <span>
+                  <span className="font-mono">{p.trackingNumber}</span> · {formatKarachiTime(p.bookedAt)}
+                </span>
+                <span className={p.outcome === 'refused' ? 'font-medium text-brand-coral' : 'text-muted-foreground'}>
+                  {formatPaisa(p.codPaisa)} · {PARCEL_OUTCOME[p.outcome]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
@@ -510,6 +521,7 @@ export function ConfirmationsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Confirmations</h1>
         <p className="text-sm text-muted-foreground">New orders nobody has tagged yet. Tags are Shopify's own: a change here is saved in Shopify, and a change in Shopify shows here.</p>
       </div>
+      <ShopifyAccessNotice needs={['writeOrders']} purpose="change order tags" />
       <AlertsCard />
       <OrdersList />
     </>

@@ -31,7 +31,7 @@ export function IntegrationStatus() {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div>
           <CardTitle>Connections</CardTitle>
           <CardDescription>

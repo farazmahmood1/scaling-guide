@@ -47,7 +47,7 @@ export const paymentText = (status: string | null): string => (status ? status.c
 export const ordersPath = (q: ListQuery, page: { page: number; pageSize: number } = q): string => {
   const params = new URLSearchParams();
   if (q.search) params.set('q', q.search);
-  for (const key of ['state', 'store', 'channel', 'flag', 'city']) {
+  for (const key of ['state', 'store', 'channel', 'flag', 'city', 'tag']) {
     const values = q.multi[key];
     if (values?.length) params.set(key, values.join(','));
   }

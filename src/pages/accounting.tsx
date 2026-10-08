@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Save } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 
 import { BillsView, DocumentLines, InvoicesView, PaymentsView } from '@/components/accounting-documents';
+import { ExpensesPanel } from '@/components/expenses-panel';
+import { JournalList } from '@/components/journal-list';
 import { PeriodClose } from '@/components/period-close';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +21,7 @@ import { formatPaisa, paisaToInput, parseRupees } from '@/lib/format';
 const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
 const ACCOUNT_NAMES: Record<string, string> = {
   '1000': 'Bank',
+  '1010': 'Cash in hand',
   '1100': 'COD receivable (PostEx)',
   '1150': 'Customer receivable',
   '1200': 'Partner receivable',
@@ -245,27 +248,74 @@ function Documents() {
   );
 }
 
-/** The books' documents, month close and set-up. The reports (P&L, trial balance, ledgers) are under Reports. */
+/** A tab's first lines: what it holds and where its entries come from, in plain words. */
+function TabIntro({ children }: { children: React.ReactNode }) {
+  return <p className="mb-3 max-w-3xl text-sm text-muted-foreground">{children}</p>;
+}
+
+const TAB_KEYS = ['journal', 'expenses', 'documents', 'close', 'setup'] as const;
+type TabKey = (typeof TAB_KEYS)[number];
+const isTab = (v: string | null): v is TabKey => (TAB_KEYS as readonly string[]).includes(v ?? '');
+
+/**
+ * The books: the journal of everything posted, the business's expenses, the documents that post
+ * (invoices, bills, payments), month close and the opening balances. The reports (P&L, trial
+ * balance, ledgers) are under Reports.
+ */
 export function AccountingPage() {
+  const [params, setParams] = useSearchParams();
+  const tab: TabKey = isTab(params.get('tab')) ? (params.get('tab') as TabKey) : 'journal';
+  const setTab = (next: string) =>
+    setParams((p) => {
+      if (next === 'journal') p.delete('tab');
+      else p.set('tab', next);
+      return p;
+    });
   return (
     <>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Accounting</h1>
         <p className="text-sm text-muted-foreground">
-          Double-entry, posted from deliveries, PostEx charges and payouts. Revenue counts only once a parcel is delivered. Profit and loss, the trial balance and the ledgers are in{' '}
+          Double-entry books, posted on their own from deliveries, PostEx charges and payouts, and by people for purchases and expenses. A sale counts only once its parcel
+          is delivered. Profit and loss, the trial balance and the ledgers are in{' '}
           <Link className="underline underline-offset-2" to="/reports">
             Reports
           </Link>
           .
         </p>
       </div>
-      <Tabs defaultValue="documents">
-        <TabsList>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="journal">Journal</TabsTrigger>
+          <TabsTrigger value="expenses">Expenses</TabsTrigger>
           <TabsTrigger value="documents">Invoices, bills and payments</TabsTrigger>
           <TabsTrigger value="close">Month close</TabsTrigger>
           <TabsTrigger value="setup">Opening balances</TabsTrigger>
         </TabsList>
+        <TabsContent value="journal" className="mt-3">
+          <TabIntro>
+            Every entry in the books, newest first. Most are posted by the system: a sale when PostEx delivers a parcel, PostEx's charges when it books or returns one, cash
+            when PostEx pays out. Open one to see its debits and credits.
+          </TabIntro>
+          <Card>
+            <CardContent className="pt-6">
+              <JournalList />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="expenses" className="mt-3">
+          <TabIntro>
+            Ads, salaries, rent, packaging and other running costs. Record each as it is paid; the profit and loss subtracts them to give net profit.
+          </TabIntro>
+          <ExpensesPanel />
+        </TabsContent>
         <TabsContent value="documents" className="mt-3">
+          <TabIntro>
+            <span className="font-medium text-foreground">Invoices</span> are made when a retail partner's sales sheet is imported (Partners).{' '}
+            <span className="font-medium text-foreground">Bills</span> are the supplier's bills recorded under Purchase → Bill.{' '}
+            <span className="font-medium text-foreground">Payments</span> are money received from partners and paid to suppliers. Each one opens the entries it posted. They
+            stay empty until those steps are used.
+          </TabIntro>
           <Card>
             <CardContent className="pt-6">
               <Documents />
@@ -273,6 +323,10 @@ export function AccountingPage() {
           </Card>
         </TabsContent>
         <TabsContent value="close" className="mt-3">
+          <TabIntro>
+            Close a month once its figures are final, normally on the 5th of the next month. Nothing posts into a closed month afterwards: a late PostEx correction lands in
+            the next open month, so a closed month's report never changes.
+          </TabIntro>
           <Card>
             <CardHeader>
               <CardTitle>Month close</CardTitle>
@@ -284,6 +338,10 @@ export function AccountingPage() {
           </Card>
         </TabsContent>
         <TabsContent value="setup" className="mt-3">
+          <TabIntro>
+            Entered once, from your accountant: what the business held and owed on the day before the platform's books start (bank, cash, money owed to and by you). Without
+            them, the balance sheet starts from zero; profit is not affected.
+          </TabIntro>
           <div className="grid gap-6 lg:grid-cols-2">
             <OpeningBalancesCard />
             <InventoryCheckCard />

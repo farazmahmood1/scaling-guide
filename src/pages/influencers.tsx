@@ -27,7 +27,7 @@ function PerformanceCard({ version }: { version: number }) {
   const { data, error, loading } = useApi<{ rows: BreakdownRow[] }>(`/api/v1/reports/breakdowns/influencer?${query}`);
   return (
     <Card>
-      <CardHeader className="flex-row flex-wrap items-end justify-between gap-3 space-y-0">
+      <CardHeader className="flex flex-row flex-wrap items-end justify-between gap-3 space-y-0">
         <div>
           <CardTitle>Sales by influencer</CardTitle>
           <CardDescription>Delivered parcels only, net of returns. Rows add up to the P&amp;L for the same period.</CardDescription>

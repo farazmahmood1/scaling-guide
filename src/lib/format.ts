@@ -65,6 +65,12 @@ export const describeItem = (item: Pick<ReviewItem, 'kind' | 'detail'>): string 
       const numbers = Array.isArray(d['trackingNumbers']) ? (d['trackingNumbers'] as unknown[]).map(text) : [];
       return `${text(d['orderNumber'])} was cancelled ${d['cancelledBy'] === 'desk' ? 'at the desk' : 'in Shopify'}, but parcel ${numbers.join(', ')} is still out`;
     }
+    case 'cost_missing':
+      return `${text(d['product']) || 'A product'} has no cost price for ${text(d['needCostOn']) || 'its order date'}`;
+    case 'stock_unmapped_line': {
+      const lines = Array.isArray(d['lines']) ? (d['lines'] as Array<Record<string, unknown>>).map((l) => `${text(l['qty'])} × ${text(l['title'])}`) : [];
+      return `${lines.join(', ') || 'An order line'} is not a product in the catalogue${d['trackingNumber'] ? ` (parcel ${text(d['trackingNumber'])})` : ''}`;
+    }
     case 'postex_unknown_status':
       return `Code ${text(d['code'])} "${text(d['message'])}" is not a code we know yet`.replace(' ""', '');
     default:

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { useAuth } from '@/auth/auth-context';
 import { IntegrationStatus } from '@/components/integration-status';
 import { PeriodClose } from '@/components/period-close';
-import { AlertsForm, PurchasingForm, TagsForm } from '@/components/settings-forms';
+import { AlertsForm, PurchasingForm, ShopifyWritebackForm, TagsForm } from '@/components/settings-forms';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UsersAdmin } from '@/components/users-admin';
@@ -13,6 +13,7 @@ const SECTIONS = [
   { key: 'alerts', label: 'Alerts' },
   { key: 'purchasing', label: 'Purchasing' },
   { key: 'tags', label: 'Order tags' },
+  { key: 'shopify', label: 'Shopify updates' },
   { key: 'close', label: 'Month close' },
   { key: 'users', label: 'Users and roles' },
 ] as const;
@@ -96,6 +97,17 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent>
               <TagsForm />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="shopify" className="mt-3">
+          <Card>
+            <CardHeader>
+              <CardTitle>What the platform changes in Shopify</CardTitle>
+              <CardDescription>The platform reads everything from Shopify; these are the only changes it makes there.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ShopifyWritebackForm />
             </CardContent>
           </Card>
         </TabsContent>

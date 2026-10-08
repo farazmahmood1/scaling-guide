@@ -7,7 +7,7 @@ Shows orders, returns, stock and profit across NUR by Juggun and Juggun's Organi
 
 ```bash
 npm install
-npm run dev      # http://127.0.0.1:5173
+npm run dev      # http://127.0.0.1:3000
 ```
 
 Start the backend too (`cd ../backend && npm run dev`). Vite proxies `/api` to

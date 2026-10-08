@@ -10,14 +10,15 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useApi } from '@/hooks/use-api';
 import { useListQuery } from '@/hooks/use-list-query';
 import { useOrderList } from '@/hooks/use-order-list';
-import type { OrderListRow } from '@/lib/api';
+import type { OrderListRow, StoreKey } from '@/lib/api';
+import { TagChip } from '@/components/tag-chip';
 import { formatKarachiTime, formatPaisa, paisaToInput } from '@/lib/format';
 import type { QuerySpec } from '@/lib/list-query';
 import { CHANNEL_LABELS, ORDER_CHANNELS, ORDER_FLAGS, ORDER_FLAG_LABELS, ORDER_STATES, ORDER_STATE_LABELS, orderStateText, orderStateTone, paymentText } from '@/lib/orders';
 import { stageText, storeLabel } from '@/lib/parcels';
 import { stageTone } from '@/lib/postex';
 
-const COLUMN_KEYS = ['order', 'view', 'store', 'state', 'customer', 'phone', 'city', 'total', 'items', 'placedAt', 'parcel', 'payment', 'flags'];
+const COLUMN_KEYS = ['order', 'view', 'store', 'state', 'tags', 'customer', 'phone', 'city', 'total', 'items', 'placedAt', 'parcel', 'payment', 'flags'];
 
 const SPEC_BASE: Omit<QuerySpec, 'multi'> = {
   sortKeys: ['placedAt', 'total', 'items'],
@@ -29,8 +30,27 @@ const SPEC_BASE: Omit<QuerySpec, 'multi'> = {
   defaultHidden: ['payment'],
 };
 
-// Cities come from the data, so the spec accepts any short value for them.
-const SPEC: QuerySpec = { ...SPEC_BASE, multi: { state: ORDER_STATES, channel: ORDER_CHANNELS, flag: ORDER_FLAGS, city: null } };
+// Cities and tags come from the data, so the spec accepts any short value for them.
+const SPEC: QuerySpec = { ...SPEC_BASE, multi: { state: ORDER_STATES, channel: ORDER_CHANNELS, flag: ORDER_FLAGS, city: null, tag: null } };
+
+type StatusTags = Record<StoreKey, readonly string[]>;
+
+/** The order's Shopify tags: a confirmation decision in colour, other apps' tags quiet. */
+const tagsColumn = (statusTags: StatusTags | undefined): Column<OrderListRow> => ({
+  key: 'tags',
+  header: 'Shopify tags',
+  cell: (r) =>
+    r.tags.length === 0 ? (
+      <span className="text-xs text-muted-foreground">No tags</span>
+    ) : (
+      <span className="flex max-w-72 flex-wrap gap-1">
+        {r.tags.map((t) => (
+          <TagChip key={t} tag={t} statusTags={(r.store && statusTags?.[r.store]) || []} />
+        ))}
+      </span>
+    ),
+  csv: (r) => r.tags.join('; '),
+});
 
 const flagText = (row: OrderListRow): string[] =>
   [
@@ -111,9 +131,14 @@ export function OrdersPage() {
   const list = useOrderList(query);
   const { can } = useAuth();
   const cities = useApi<{ cities: Array<{ city: string; orders: number }> }>('/api/v1/orders/cities');
+  const tags = useApi<{ tags: Array<{ tag: string; orders: number }>; statusTags: StatusTags }>('/api/v1/orders/tags');
+  const statusTags = tags.data?.statusTags;
 
   // A role that may not see phone numbers has no column of dashes in their place.
-  const columns = useMemo(() => (can('pii.phone') ? COLUMNS : COLUMNS.filter((c) => c.key !== 'phone')), [can]);
+  const columns = useMemo(() => {
+    const all = COLUMNS.flatMap((c) => (c.key === 'state' ? [c, tagsColumn(statusTags)] : [c]));
+    return can('pii.phone') ? all : all.filter((c) => c.key !== 'phone');
+  }, [can, statusTags]);
 
   const filters = useMemo<MultiFilter[]>(
     () => [
@@ -121,15 +146,16 @@ export function OrdersPage() {
       { key: 'channel', label: 'Channel', options: ORDER_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABELS[c] })) },
       { key: 'flag', label: 'Flag', options: ORDER_FLAGS.map((f) => ({ value: f, label: ORDER_FLAG_LABELS[f] })) },
       { key: 'city', label: 'City', options: (cities.data?.cities ?? []).map((c) => ({ value: c.city, label: `${c.city} (${c.orders})` })) },
+      { key: 'tag', label: 'Shopify tag', options: (tags.data?.tags ?? []).map((t) => ({ value: t.tag, label: `${t.tag} (${t.orders})` })) },
     ],
-    [cities.data],
+    [cities.data, tags.data],
   );
 
   return (
     <>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Orders</h1>
-        <p className="text-sm text-muted-foreground">Every Shopify order and the state it is in.</p>
+        <p className="text-sm text-muted-foreground">Every Shopify order, the state it is in, and the tags it carries in Shopify.</p>
       </div>
       <Card>
         <CardHeader>

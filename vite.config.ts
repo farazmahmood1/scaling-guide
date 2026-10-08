@@ -14,7 +14,7 @@ export default defineConfig({
   server: {
     // Bind IPv4 explicitly: the default localhost binding resolves to ::1 only on this machine.
     host: '127.0.0.1',
-    port: 5173,
+    port: 3000,
     // Calls to /api go to the backend, so the dashboard uses one origin in development.
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: true },

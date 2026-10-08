@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PackageCheck, Plus, ReceiptText, Trash2 } from 'lucide-react';
+import { ArrowRight, CircleCheck, PackageCheck, Plus, ReceiptText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { VariantPicker } from '@/components/variant-picker';
@@ -19,15 +19,48 @@ const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
 const dateClass = 'h-9 rounded-lg border bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
 const storeName = (s: StoreKey) => (s === 'nur' ? 'NUR by Juggun' : "Juggun's Organics");
 
+export type NextStep = 'receive' | 'bill';
+
+/** What an order is waiting for, in words, and the step that does it. */
+const nextFor = (status: OrderStatus): { text: string; step: NextStep | null; action: string | null } => {
+  switch (status) {
+    case 'ordered':
+      return { text: 'Waiting for the goods to arrive', step: 'receive', action: 'Goods arrived: receive them' };
+    case 'partially_received':
+      return { text: 'Part of the goods arrived; the rest is still to come', step: 'receive', action: 'Receive the rest' };
+    case 'received':
+      return { text: 'Goods received; waiting for the supplier\'s bill', step: 'bill', action: 'Record the supplier\'s bill' };
+    case 'billed':
+      return { text: 'Billed; waiting to be paid', step: 'bill', action: 'Record the payment' };
+    case 'paid':
+      return { text: 'Done: received, billed and paid', step: null, action: null };
+    case 'cancelled':
+      return { text: 'Cancelled', step: null, action: null };
+  }
+};
+
 /** Orders, optionally only those in the given statuses (the steps that act on an order show the ones that need it). */
-export function OrdersList({ statuses, selected, onSelect, reloadKey }: { statuses?: readonly OrderStatus[]; selected: string | null; onSelect: (id: string | null) => void; reloadKey: number }) {
+export function OrdersList({
+  statuses,
+  selected,
+  onSelect,
+  reloadKey,
+  empty,
+}: {
+  statuses?: readonly OrderStatus[];
+  selected: string | null;
+  onSelect: (id: string | null) => void;
+  reloadKey: number;
+  /** What to say when no order is at this step. */
+  empty?: string;
+}) {
   const { data, error, loading } = useApi<{ orders: PurchaseOrderSummary[] }>(`/api/v1/purchasing/orders?k=${reloadKey}`);
   const orders = (data?.orders ?? []).filter((o) => !statuses || statuses.includes(o.status));
   return (
     <div>
       {loading && !data && <TableSkeleton rows={4} label="Loading the orders" columns={[{ header: 'Order', sub: true }, 'Vendor', { header: 'Status', as: 'badge' }, num('Received'), num('Value')]} />}
       {error && !data && <p className="text-sm text-brand-coral">Could not load orders: {error}</p>}
-      {data && orders.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nothing here.</p>}
+      {data && orders.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">{empty ?? 'Nothing here.'}</p>}
       {orders.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
@@ -39,6 +72,7 @@ export function OrdersList({ statuses, selected, onSelect, reloadKey }: { status
                 <th scope="col" className="px-3 py-2 font-medium">Status</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Received</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Value</th>
+                <th scope="col" className="px-3 py-2 font-medium">Next step</th>
               </tr>
             </thead>
             <tbody>
@@ -61,6 +95,7 @@ export function OrdersList({ statuses, selected, onSelect, reloadKey }: { status
                     {o.received} / {o.ordered}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatPaisa(o.total)}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{nextFor(o.status).text}</td>
                 </tr>
               ))}
             </tbody>
@@ -304,7 +339,7 @@ function BillForm({ order, onDone }: { order: PurchaseOrderDetail; onDone: () =>
 }
 
 /** One order, with what has arrived and been billed against each line, and the action for the step. */
-export function OrderDetail({ poId, focus, onChanged }: { poId: string; focus: 'order' | 'receive' | 'bill'; onChanged: () => void }) {
+export function OrderDetail({ poId, focus, onChanged, onNext }: { poId: string; focus: 'order' | 'receive' | 'bill'; onChanged: () => void; onNext?: (step: NextStep, poId: string) => void }) {
   const { data, error, reload } = useApi<{ order: PurchaseOrderDetail }>(`/api/v1/purchasing/orders/${poId}`);
   const [cancelling, setCancelling] = useState(false);
   const order = data?.order;
@@ -330,7 +365,7 @@ export function OrderDetail({ poId, focus, onChanged }: { poId: string; focus: '
   if (!order)
     return (
       <Card>
-        <CardHeader className="flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
           <div aria-hidden>
             <Skeleton className="h-5 w-56 max-w-full" />
             <Line className="mt-1.5 w-72" />
@@ -345,7 +380,7 @@ export function OrderDetail({ poId, focus, onChanged }: { poId: string; focus: '
   const cancellable = order.status === 'ordered';
   return (
     <Card>
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
         <div>
           <CardTitle>
             {order.number} · {order.vendor}
@@ -365,6 +400,27 @@ export function OrderDetail({ poId, focus, onChanged }: { poId: string; focus: '
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
+        {(() => {
+          const next = nextFor(order.status);
+          const here = next.step === focus;
+          return (
+            <div className={cn('flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm', next.step ? 'border-primary/40 bg-primary/5' : 'bg-muted/40')}>
+              {next.step ? <ArrowRight className="size-4 shrink-0 text-primary" /> : <CircleCheck className="size-4 shrink-0 text-muted-foreground" />}
+              <span className="flex-1">
+                <span className="font-medium">{next.text}.</span>
+                {here && next.step === 'receive' && ' Enter what arrived below; it goes onto the shelf at this order\'s price.'}
+                {here && next.step === 'bill' && order.status === 'received' && ' Enter the supplier\'s bill below; it must match what was ordered and received.'}
+                {here && order.status === 'billed' && ' Record the payment against the bill in "Bills and payments" above.'}
+              </span>
+              {next.step && !here && onNext && (
+                <Button size="sm" onClick={() => onNext(next.step!, order.id)}>
+                  {next.action}
+                  <ArrowRight className="size-4" />
+                </Button>
+              )}
+            </div>
+          );
+        })()}
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <caption className="sr-only">Lines of the order</caption>

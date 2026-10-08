@@ -125,6 +125,8 @@ const SOURCE_LABELS: Record<string, string> = {
   consignment_cogs: 'Partner sale: cost of goods',
   partner_payment: 'Partner payment',
   opening_balance: 'Opening balances',
+  expense: 'Expense',
+  pr_send: 'PR package',
   reversal: 'Reversal',
 };
 export const sourceLabel = (type: string): string => SOURCE_LABELS[type] ?? type.replaceAll('_', ' ');

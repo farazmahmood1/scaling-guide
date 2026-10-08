@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { apiPost } from '@/lib/api';
+import { type CheckInResponse, apiPost } from '@/lib/api';
 import { type Outcome, type Pending, emptyPending, submitCheckIn } from '@/lib/check-in';
 
 /**
@@ -20,16 +20,22 @@ export function useCheckIn(onSaved: () => void) {
 
   const checkIn = useCallback(
     async (shipmentId: string, trackingNumber: string, outcome: Outcome) => {
+      let response: CheckInResponse | undefined;
       try {
         const saved = await submitCheckIn({
           shipmentId,
           outcome,
           current: () => latest.current,
           apply,
-          send: () => apiPost(`/api/v1/stock/returns/${shipmentId}/check-in`, { outcome }),
+          send: async () => {
+            response = await apiPost<CheckInResponse>(`/api/v1/stock/returns/${shipmentId}/check-in`, { outcome });
+          },
         });
         if (saved) {
-          toast.success(`${trackingNumber} checked in as ${outcome}`);
+          // The check-in is saved whatever Shopify said; say what Shopify did, or why it did not.
+          const sync = response?.shopify;
+          if (sync?.outcome === 'failed') toast.warning(`${trackingNumber} checked in as ${outcome}; Shopify was not updated`, { description: sync.error ?? sync.message });
+          else toast.success(`${trackingNumber} checked in as ${outcome}`, sync ? { description: `Shopify: ${sync.message}` } : undefined);
           onSaved();
         }
       } catch (cause) {

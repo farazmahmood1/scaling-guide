@@ -16,7 +16,7 @@ import { paisaDigits, today, wholeUnits } from '@/lib/purchasing';
 const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
 const dateClass = 'h-9 rounded-lg border bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
 
-function AddVendor({ onDone }: { onDone: () => void }) {
+export function AddVendor({ onDone }: { onDone: () => void }) {
   const [form, setForm] = useState({ name: '', contactName: '', phone: '', city: '', leadTimeDays: '', paymentTermsDays: '' });
   const [saving, setSaving] = useState(false);
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value });

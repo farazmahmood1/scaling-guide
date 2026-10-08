@@ -159,6 +159,18 @@ export function ReconciliationPage() {
         </div>
       </div>
 
+      <div className="mb-6 rounded-xl border bg-muted/30 p-4 text-sm">
+        <p className="font-medium">What this page is</p>
+        <p className="mt-1 text-muted-foreground">
+          A to-do list of things the platform cannot decide on its own: a PostEx parcel with no Shopify order, a COD that differs from the order, a product with no cost
+          price, and so on. Each group says what it means and what to do. Work an item, then Resolve or Ignore it with a note; every decision is kept with your name.
+        </p>
+        <p className="mt-2 text-muted-foreground">
+          It is not where orders are made. An order made by hand in Shopify (for example for someone who comes to the office) is an ordinary Shopify order: it appears under
+          Orders by itself. It only shows here if a PostEx parcel is booked with a number Shopify does not have.
+        </p>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {summary.error && !summary.data && (

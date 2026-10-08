@@ -1,23 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/auth-context';
 import { useBrand } from '@/brand/brand-context';
 import { MoveHistory } from '@/components/move-history';
+import { ShopifyStockPanel } from '@/components/shopify-stock-panel';
+import { StockCountSheet } from '@/components/stock-count-sheet';
+import { StockExplainer } from '@/components/stock-explainer';
 import { StockTable, StockTableSkeleton, StockTotals } from '@/components/stock-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { TableSkeleton, num } from '@/components/skeletons';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useApi } from '@/hooks/use-api';
-import { type Quant, type StockComparisonRow, type StockLocation, type VariantHit, apiGet, apiPost } from '@/lib/api';
+import { type Quant, type StockLocation, type VariantHit, apiGet, apiPost } from '@/lib/api';
 import { pivotQuants } from '@/lib/stock';
 
+// Counts (opening and later) are entered on the count sheet, as what was found; here, single differences.
 const REASONS = [
-  { value: 'opening_stock', label: 'Opening stock' },
-  { value: 'count', label: 'Stock count' },
   { value: 'correction', label: 'Correction' },
   { value: 'damage', label: 'Damage' },
   { value: 'loss', label: 'Loss' },
@@ -31,17 +33,16 @@ interface Line {
 }
 
 /**
- * A count or correction. Each line moves units between the adjustment location and the chosen
- * one; the backend writes the moves and the audit row, never a quantity.
+ * A correction of one figure by a difference. Each line moves units between the adjustment
+ * location and the chosen one; the backend writes the moves and the audit row, never a quantity.
  */
 function AdjustmentForm({ locations, onDone }: { locations: StockLocation[]; onDone: () => void }) {
   const holding = locations.filter((l) => ['warehouse', 'partner', 'damaged'].includes(l.kind));
   const [chosenLocation, setLocationId] = useState('');
   // The first holding location until the user picks one; the list arrives after the first render.
   const locationId = chosenLocation || holding[0]?.id || '';
-  const [reason, setReason] = useState<(typeof REASONS)[number]['value']>('count');
+  const [reason, setReason] = useState<(typeof REASONS)[number]['value']>('correction');
   const [note, setNote] = useState('');
-  const [asAt, setAsAt] = useState('');
   const [search, setSearch] = useState('');
   const [hits, setHits] = useState<VariantHit[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
@@ -74,7 +75,6 @@ function AdjustmentForm({ locations, onDone }: { locations: StockLocation[]; onD
         locationId,
         reason,
         ...(note.trim() ? { note: note.trim() } : {}),
-        ...(reason === 'opening_stock' && asAt ? { asAt } : {}),
         lines: lines.map((l, i) => ({ variantId: l.variant.id, delta: deltas[i] })),
       });
       toast.success('Adjustment recorded');
@@ -91,7 +91,7 @@ function AdjustmentForm({ locations, onDone }: { locations: StockLocation[]; onD
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Count or correction</CardTitle>
+        <CardTitle>Correction</CardTitle>
         <CardDescription>Positive adds units at the location, negative removes them. Recorded with your name.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -111,12 +111,6 @@ function AdjustmentForm({ locations, onDone }: { locations: StockLocation[]; onD
             ))}
           </select>
         </div>
-        {reason === 'opening_stock' && (
-          <label className="block text-xs">
-            Counted as at (the opening balances date)
-            <Input type="date" className="mt-1 w-44" value={asAt} onChange={(e) => setAsAt(e.target.value)} />
-          </label>
-        )}
         <div className="relative">
           <Input placeholder="Find a product by SKU or name" value={search} onChange={(e) => setSearch(e.target.value)} />
           {visibleHits.length > 0 && (
@@ -169,136 +163,31 @@ function AdjustmentForm({ locations, onDone }: { locations: StockLocation[]; onD
   );
 }
 
-/**
- * Shopify's stock beside ours. Shopify's "on hand" still counts parcels that left, because orders
- * are not marked fulfilled there, so the shelf is estimated as available + committed to orders
- * not booked with PostEx yet. The opening count can be taken from that estimate once per store.
- */
-function ShopifyStockCard({ onDone }: { onDone: () => void }) {
-  const [store, setStore] = useState<'nur' | 'organics'>('nur');
-  const [asAt, setAsAt] = useState('');
-  const [confirming, setConfirming] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const { data, error, loading, reload } = useApi<{ rows: StockComparisonRow[] }>(`/api/v1/stock/shopify-comparison?store=${store}`);
-  const rows = data?.rows ?? [];
-  const differing = rows.filter((r) => r.difference !== 0);
-
-  const take = async () => {
-    setSaving(true);
-    try {
-      const result = await apiPost<{ lines: number; units: number }>('/api/v1/stock/opening-from-shopify', { asAt, store });
-      toast.success(result.lines ? `Opening count recorded: ${result.lines} products, ${result.units} units` : 'Nothing to record: our stock already matches');
-      setConfirming(false);
-      reload();
-      onDone();
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : 'Could not record the opening count');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Card className="lg:col-span-3">
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <CardTitle>Shopify stock</CardTitle>
-            <CardDescription>
-              Shopify's on hand still includes parcels already sent with PostEx (they stay "committed" because orders are not marked fulfilled). The shelf is
-              estimated as available + committed to orders not booked yet.
-            </CardDescription>
-          </div>
-          <select className={selectClass} value={store} onChange={(e) => setStore(e.target.value as 'nur' | 'organics')} aria-label="Store">
-            <option value="nur">NUR by Juggun</option>
-            <option value="organics">Juggun's Organics</option>
-          </select>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {loading && !data && (
-          <TableSkeleton
-            variant="ui"
-            rows={6}
-            label="Loading Shopify's stock"
-            columns={['Product', num('On hand'), num('Committed'), num('…not booked'), num('Available'), num('Shelf estimate'), num('Our warehouse'), num('Difference')]}
-          />
-        )}
-        {error && <p className="text-sm text-brand-coral">Could not load Shopify's stock: {error}</p>}
-        {data && rows.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No stock read from Shopify yet: it arrives with the hourly catalogue sync.</p>}
-        {rows.length > 0 && (
-          <div className="max-h-96 overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">On hand</TableHead>
-                  <TableHead className="text-right">Committed</TableHead>
-                  <TableHead className="text-right">…not booked</TableHead>
-                  <TableHead className="text-right">Available</TableHead>
-                  <TableHead className="text-right">Shelf estimate</TableHead>
-                  <TableHead className="text-right">Our warehouse</TableHead>
-                  <TableHead className="text-right">Difference</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.variantId}>
-                    <TableCell>
-                      {r.title} <span className="font-mono text-xs text-muted-foreground">{r.sku ?? 'no SKU'}</span>
-                    </TableCell>
-                    <TableCell className="text-right">{r.onHand}</TableCell>
-                    <TableCell className="text-right">{r.committed}</TableCell>
-                    <TableCell className="text-right">{r.committedUnbooked}</TableCell>
-                    <TableCell className="text-right">{r.available}</TableCell>
-                    <TableCell className="text-right font-medium">{r.estimate}</TableCell>
-                    <TableCell className="text-right">{r.warehouse}</TableCell>
-                    <TableCell className={r.difference === 0 ? 'text-right text-muted-foreground' : 'text-right font-medium text-brand-coral'}>
-                      {r.difference > 0 ? `+${r.difference}` : r.difference}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-        {differing.length > 0 && (
-          <div className="flex flex-wrap items-end gap-2 border-t pt-3">
-            <label className="text-xs">
-              Opening count as at (the cut-over date)
-              <Input type="date" className="mt-1 w-44" value={asAt} onChange={(e) => setAsAt(e.target.value)} />
-            </label>
-            {confirming ? (
-              <>
-                <Button size="sm" variant="destructive" disabled={saving} onClick={take}>
-                  Record {differing.length} products as the opening count
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <Button size="sm" variant="outline" disabled={!asAt} onClick={() => setConfirming(true)}>
-                Use the shelf estimate as the opening count
-              </Button>
-            )}
-            <p className="w-full text-xs text-muted-foreground">
-              Sets our warehouse today to the estimate, dated at the cut-over day. Once per store; after that, enter differences as stock counts.
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+type InventoryTab = 'stock' | 'count' | 'shopify' | 'corrections';
+const TABS: ReadonlyArray<{ value: InventoryTab; label: string }> = [
+  { value: 'stock', label: 'Stock by product' },
+  { value: 'count', label: 'Count the shelf' },
+  { value: 'shopify', label: 'Shopify stock' },
+  { value: 'corrections', label: 'Corrections' },
+];
+const isTab = (v: string | null): v is InventoryTab => TABS.some((t) => t.value === v);
 
 /**
  * Current stock per product, with each place a unit can be shown apart: the shelf, with PostEx,
- * coming back, at partners, damaged. Opening a product shows every move behind its numbers.
+ * coming back, at partners, damaged. Opening a product shows every move behind its numbers. The
+ * other tabs count the shelf, compare with Shopify, and correct a single figure.
  */
 export function InventoryPage() {
   const { can } = useAuth();
   const { brand: store } = useBrand();
+  const [params, setParams] = useSearchParams();
+  const tab: InventoryTab = isTab(params.get('tab')) ? (params.get('tab') as InventoryTab) : 'stock';
+  const setTab = (next: string) =>
+    setParams((p) => {
+      if (next === 'stock') p.delete('tab');
+      else p.set('tab', next);
+      return p;
+    });
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const query = new URLSearchParams({ ...(store ? { store } : {}), ...(search.trim() ? { search: search.trim() } : {}) });
@@ -312,9 +201,7 @@ export function InventoryPage() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
-          <p className="text-sm text-muted-foreground">
-            Every unit is in exactly one place. Units with PostEx or coming back are not on the shelf. Negative stock means the opening count has not been entered yet.
-          </p>
+          <p className="text-sm text-muted-foreground">Every unit is in exactly one place: on the shelf, with PostEx, coming back, at a partner, or damaged. Only the shelf can be sold.</p>
         </div>
         <Button variant="ghost" size="sm" onClick={quants.reload} disabled={quants.loading}>
           <RefreshCw className={quants.loading ? 'size-4 animate-spin' : 'size-4'} />
@@ -322,26 +209,80 @@ export function InventoryPage() {
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="space-y-3">
-            <StockTotals rows={rows} />
-            <div className="flex flex-wrap items-center gap-2">
-              <Input className="w-full sm:w-64" placeholder="Search SKU or product" value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
-          </CardHeader>
-          <CardContent>
-            {quants.loading && !quants.data && <StockTableSkeleton />}
-            {quants.error && <p className="text-sm text-brand-coral">Could not load stock: {quants.error}</p>}
-            {quants.data && rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No stock recorded for this view.</p>}
-            {rows.length > 0 && <StockTable rows={rows} selected={selected} onSelect={(id) => setSelected(selected === id ? null : id)} />}
-            {open && <MoveHistory key={open.variantId} variantId={open.variantId} title={`${open.product} · ${open.variant}${open.sku ? ` (${open.sku})` : ''}`} />}
-          </CardContent>
-        </Card>
+      <StockExplainer onCount={() => setTab('count')} />
 
-        {can('stock.adjust') && <AdjustmentForm locations={locations.data?.locations ?? []} onDone={quants.reload} />}
-        <ShopifyStockCard onDone={quants.reload} />
-      </div>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          {TABS.filter((t) => (t.value === 'count' || t.value === 'corrections' ? can('stock.adjust') : true)).map((t) => (
+            <TabsTrigger key={t.value} value={t.value}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value="stock" className="mt-3">
+          <Card>
+            <CardHeader className="space-y-3">
+              <StockTotals rows={rows} />
+              <div className="flex flex-wrap items-center gap-2">
+                <Input className="w-full sm:w-64" placeholder="Search SKU or product" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Choose a product to see every move behind its numbers.</p>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {quants.loading && !quants.data && <StockTableSkeleton />}
+              {quants.error && <p className="text-sm text-brand-coral">Could not load stock: {quants.error}</p>}
+              {quants.data && rows.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No stock recorded for this view.</p>}
+              {rows.length > 0 && <StockTable rows={rows} selected={selected} onSelect={(id) => setSelected(selected === id ? null : id)} />}
+              {open && <MoveHistory key={open.variantId} variantId={open.variantId} title={`${open.product} · ${open.variant}${open.sku ? ` (${open.sku})` : ''}`} />}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {can('stock.adjust') && (
+          <TabsContent value="count" className="mt-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>Count the shelf</CardTitle>
+                <CardDescription>Enter what is physically on the shelf. The first count for a brand is its opening count; after that, a count corrects the shelf to what is really there.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <StockCountSheet onDone={quants.reload} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        <TabsContent value="shopify" className="mt-3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Shopify stock</CardTitle>
+              <CardDescription>What Shopify says each product has, beside our own shelf.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ShopifyStockPanel onDone={quants.reload} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {can('stock.adjust') && (
+          <TabsContent value="corrections" className="mt-3">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <AdjustmentForm locations={locations.data?.locations ?? []} onDone={quants.reload} />
+              <Card>
+                <CardHeader>
+                  <CardTitle>When to use a correction</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm text-muted-foreground">
+                  <p>For one or two products at a time, by a difference rather than a count: a unit broken on the shelf (Damage), a unit missing (Loss), a mistake in an earlier entry (Correction).</p>
+                  <p>To count the whole shelf, use Count the shelf instead. Returns are checked in on the Returns page, and purchases received under Purchase; both move stock on their own.</p>
+                  <p>Every correction is kept with your name and reason, and shows in the product's move history.</p>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
+      </Tabs>
     </>
   );
 }

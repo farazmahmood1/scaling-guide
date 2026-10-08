@@ -435,7 +435,9 @@ export interface TagEditResult {
 export interface CustomerHistory {
   phone: string;
   orders: Array<{ orderId: string; store: StoreKey; orderNumber: string; placedAt: string; totalPaisa: string; state: string | null; channel: string; city: string | null }>;
-  counts: { orders: number; delivered: number; refused: number; cancelled: number; inFlight: number; awaiting: number };
+  /** PostEx parcels to this number with no Shopify order (booked by hand, or older than the stored orders). */
+  parcels: Array<{ shipmentId: string; trackingNumber: string; account: string; bookedAt: string | null; codPaisa: string | null; statusCode: string | null; outcome: 'delivered' | 'refused' | 'cancelled' | 'in_flight'; city: string | null }>;
+  counts: { orders: number; parcelsWithoutOrder: number; delivered: number; refused: number; cancelled: number; inFlight: number; awaiting: number };
   deliveryRate: number | null;
   city: { name: string; delivered: number; returned: number; returnRate: number | null } | null;
 }
@@ -1008,6 +1010,8 @@ export interface ParcelRow {
   orderRef: string | null;
   pr: boolean;
   checkedIn: 'restocked' | 'damaged' | null;
+  /** For a checked-in parcel, the latest attempt to carry the check-in to Shopify. */
+  shopifySync: ShopifySyncState | null;
 }
 
 export interface ParcelPage {
@@ -1061,6 +1065,8 @@ export interface OrderListRow {
   channel: 'online' | 'consignment' | 'pr';
   items: number;
   discountCodes: string[];
+  /** The order's Shopify tags, as Shopify spells them. */
+  tags: string[];
   parcels: number;
   parcel: { id: string; trackingNumber: string; stage: ParcelRow['stage'] } | null;
 }
@@ -1070,4 +1076,134 @@ export interface OrderPage {
   page: number;
   pageSize: number;
   rows: OrderListRow[];
+}
+
+// ---- Shopify write-back, damaged register, counts, expenses, journal ----
+
+/** Where a return check-in stands in Shopify: done, nothing to do (skipped), or refused (failed). */
+export interface ShopifySyncState {
+  outcome: 'done' | 'skipped' | 'failed';
+  message: string;
+}
+
+export interface CheckInResponse {
+  shopify: (ShopifySyncState & { action: string; error: string | null; at: string }) | null;
+}
+
+/** What Shopify has granted a store's app: writing tags and cancels needs write_orders, restocking write_inventory. */
+export interface ShopifyAccess {
+  store: StoreKey;
+  scopes: string[] | null;
+  writeOrders: boolean | null;
+  writeInventory: boolean | null;
+  error: string | null;
+  checkedAt: string;
+}
+
+export interface DamagedRow {
+  checkInId: string;
+  shipmentId: string;
+  trackingNumber: string;
+  account: string;
+  store: StoreKey | null;
+  orderId: string | null;
+  orderNumber: string | null;
+  customerName: string | null;
+  phone: string | null;
+  city: string | null;
+  codPaisa: string | null;
+  bookedAt: string | null;
+  refusedAt: string | null;
+  failureReason: string | null;
+  returnedAt: string | null;
+  damagedAt: string;
+  damagedBy: string;
+  note: string | null;
+  items: Array<{ variantId: string; title: string; sku: string | null; qty: number }>;
+  units: number;
+  writtenOffPaisa: string | null;
+}
+
+export interface DamagedRegister {
+  rows: DamagedRow[];
+  units: number;
+  writtenOffPaisa: string;
+}
+
+export interface CountSheetRow {
+  variantId: string;
+  store: StoreKey;
+  product: string;
+  variant: string;
+  sku: string | null;
+  warehouse: number;
+  inTransit: number;
+  returning: number;
+  shopifyOnHand: number | null;
+  shopifyAvailable: number | null;
+}
+
+export interface CountResult {
+  adjustmentId: string | null;
+  lines: number;
+  units: number;
+}
+
+export type ExpenseCategory = 'advertising' | 'salaries' | 'rent' | 'packaging' | 'utilities' | 'other';
+
+export interface ExpenseRow {
+  id: string;
+  spentOn: string;
+  category: ExpenseCategory;
+  store: StoreKey | null;
+  amount: string;
+  paidFrom: 'bank' | 'cash';
+  payee: string | null;
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+  voided: { at: string; by: string; reason: string | null } | null;
+  entryId: string | null;
+}
+
+export interface ExpensePage {
+  rows: ExpenseRow[];
+  total: string;
+  byCategory: Record<ExpenseCategory, string>;
+}
+
+export type JournalGroup = 'sales' | 'cost' | 'postex' | 'cash' | 'purchases' | 'expenses' | 'opening' | 'reversals';
+
+export interface JournalRow {
+  id: string;
+  date: string;
+  memo: string;
+  sourceType: string;
+  sourceId: string;
+  /** The entry's total: the sum of its debits, which equals its credits. */
+  amount: string;
+  postedBy: string | null;
+  reversesId: string | null;
+  reversedBy: string | null;
+  stores: StoreKey[];
+}
+
+export interface JournalPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  rows: JournalRow[];
+}
+
+/** Why a brand's shelf reads as it does: the facts the Inventory screen explains negative stock with. */
+export interface StockHealth {
+  store: StoreKey;
+  openingCountAt: string | null;
+  lastCountAt: string | null;
+  negativeProducts: number;
+  shelfUnits: number;
+  withPostex: number;
+  comingBack: number;
+  returnsWaiting: number;
+  unmappedLines: number;
 }

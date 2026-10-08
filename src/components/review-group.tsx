@@ -46,6 +46,12 @@ export function ReviewGroup({ kind, status, count, onClosed, canAct = true }: { 
             {count !== undefined && <span className="text-sm font-normal text-muted-foreground tabular-nums">{count}</span>}
           </h2>
           <p className="text-sm text-muted-foreground">{profile.question}</p>
+          {profile.fix && (
+            <p className="mt-1 text-sm">
+              <span className="font-medium">What to do: </span>
+              {profile.fix}
+            </p>
+          )}
         </header>
       )}
       <div className="px-4">

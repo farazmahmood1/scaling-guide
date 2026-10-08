@@ -252,3 +252,40 @@ export function TagsForm() {
     </>
   );
 }
+
+/**
+ * Whether checking a return in also updates Shopify: an open order is cancelled with its items
+ * restocked, a fulfilled one has the units added back. Saved at once; on unless switched off.
+ */
+export function ShopifyWritebackForm() {
+  const { saved, error, loading, save } = useSetting<{ returnsWriteback: boolean }>('/api/v1/settings/shopify', 'shopify');
+  const [saving, setSaving] = useState(false);
+  const toggle = async (next: boolean) => {
+    setSaving(true);
+    await save({ returnsWriteback: next });
+    setSaving(false);
+  };
+  return (
+    <>
+      <Loading fields={1} columns={2} error={error} loading={loading} hasData={!!saved} />
+      {saved && (
+        <div className="space-y-3 text-sm">
+          <label className="flex items-start gap-3">
+            <input type="checkbox" className="mt-0.5 size-4" checked={saved.returnsWriteback} disabled={saving} onChange={(e) => void toggle(e.target.checked)} />
+            <span>
+              <span className="font-medium">Update Shopify when a return is checked in</span>
+              <span className="block text-muted-foreground">
+                Restocked: an order still open in Shopify is cancelled with its items restocked (no refund, no email to the customer); a fulfilled one gets the units back on
+                available. Damaged: an open order is cancelled and the units are taken off as damaged.
+              </span>
+            </span>
+          </label>
+          <p className="text-muted-foreground">
+            Shopify accepts these only once the store's app has the write_orders and write_inventory permissions; until then each check-in is kept with Shopify's reason and
+            can be retried from the Returns page.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
