@@ -15,8 +15,8 @@ const line = (over: Partial<{ id: string; qty: number; received: number; billed:
 });
 
 describe('purchasing', () => {
-  it('has the five steps in order', () => {
-    expect(STEPS.map((s) => s.key)).toEqual(['requests', 'quotes', 'orders', 'receive', 'bills']);
+  it('has the four steps in order', () => {
+    expect(STEPS.map((s) => s.key)).toEqual(['requests', 'orders', 'receive', 'bills']);
   });
 
   it('knows what is still to receive and still to bill, never below zero', () => {

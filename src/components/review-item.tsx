@@ -1,13 +1,12 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { Check, EyeOff, Link2, Unlink } from 'lucide-react';
+import { Check, ChevronsUpDown, EyeOff, Link2, Unlink } from 'lucide-react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loading } from '@/components/skeletons';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { type OrderCandidate, type ReviewItem, type StoreKey, apiGet, apiPost } from '@/lib/api';
 import { describeItem, formatKarachiTime, formatPaisa } from '@/lib/format';
 import { describeStatus } from '@/lib/postex';
@@ -129,12 +128,14 @@ function MatchNote({ match }: { match: NonNullable<ReturnType<typeof explainMatc
   );
 }
 
-/** Find the order for a parcel: the nearby candidates, narrowed by what is typed, or a number straight in. */
+/** Find the order for a parcel: pick from the nearby orders in a dropdown (narrowed by what is typed), or type a number straight in. */
 function LinkPanel({ item, onLinked }: { item: ReviewItem; onLinked: (orderNumber: string) => void }) {
   const [candidates, setCandidates] = useState<OrderCandidate[]>();
   const [search, setSearch] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<{ target: { orderId: string } | { orderNumber: string }; label: string }>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -149,7 +150,7 @@ function LinkPanel({ item, onLinked }: { item: ReviewItem; onLinked: (orderNumbe
   const wanted = search.trim().toLowerCase().replace(/^#/, '');
   const shown = useMemo(() => {
     // Digits typed may be an order number or the start of an amount in rupees (stored as paisa).
-    const digits = wanted.replaceAll(/\D/g, '');
+    const digits = wanted.replaceAll(/D/g, '');
     return (candidates ?? []).filter(
       (c) =>
         !wanted ||
@@ -159,12 +160,19 @@ function LinkPanel({ item, onLinked }: { item: ReviewItem; onLinked: (orderNumbe
     );
   }, [candidates, wanted]);
   // Typing a whole number the candidates do not hold sends it to the server, which looks in this store.
-  const typedNumber = /^#?\d{1,10}$/.test(search.trim()) ? search.trim() : null;
+  const typedNumber = /^#?d{1,10}$/.test(search.trim()) ? search.trim() : null;
+  const typedLabel = typedNumber ? (typedNumber.startsWith('#') ? typedNumber : `#${typedNumber}`) : '';
 
-  const link = async (target: { orderId: string } | { orderNumber: string }) => {
+  const choose = (choice: NonNullable<typeof selected>) => {
+    setSelected(choice);
+    setOpen(false);
+  };
+
+  const link = async () => {
+    if (!selected) return;
     setSaving(true);
     try {
-      const result = await apiPost<{ orderNumber: string }>(`/api/v1/reconciliation/items/${item.id}/link`, { ...target, ...(note.trim() ? { note: note.trim() } : {}) });
+      const result = await apiPost<{ orderNumber: string }>(`/api/v1/reconciliation/items/${item.id}/link`, { ...selected.target, ...(note.trim() ? { note: note.trim() } : {}) });
       toast.success(`${item.trackingNumber ?? 'Parcel'} linked to ${result.orderNumber}`);
       onLinked(result.orderNumber);
     } catch (cause) {
@@ -175,32 +183,45 @@ function LinkPanel({ item, onLinked }: { item: ReviewItem; onLinked: (orderNumbe
 
   return (
     <div className="mt-3 space-y-3 rounded-lg border bg-muted/40 p-3">
-      <Input aria-label="Search orders" placeholder="Search by order number, city or amount" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
-      {!candidates && (
-        <Loading label="Loading nearby orders" className="flex flex-wrap gap-2">
-          {['w-64', 'w-56', 'w-60'].map((w, i) => (
-            <Skeleton key={i} className={`h-8 ${w} max-w-full`} />
-          ))}
-        </Loading>
-      )}
-      {candidates && shown.length === 0 && <p className="text-sm text-muted-foreground">{candidates.length === 0 ? 'No nearby orders in this store.' : 'None of the nearby orders match.'}</p>}
-      <ul className="flex flex-wrap gap-2">
-        {shown.map((c) => (
-          <li key={c.id}>
-            <Button size="sm" variant="outline" disabled={saving} onClick={() => link({ orderId: c.id })}>
-              {c.orderNumber} · {formatPaisa(c.totalPaisa)}
-              {c.city ? ` · ${c.city}` : ''} · {formatKarachiTime(c.placedAt)}
-            </Button>
-          </li>
-        ))}
-      </ul>
-      {typedNumber && !shown.some((c) => c.orderNumber.replace(/^#/, '') === typedNumber.replace(/^#/, '')) && (
-        <Button size="sm" disabled={saving} onClick={() => link({ orderNumber: typedNumber })}>
-          <Link2 className="size-4" />
-          Link to order {typedNumber.startsWith('#') ? typedNumber : `#${typedNumber}`}
-        </Button>
-      )}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" role="combobox" aria-expanded={open} aria-label="Order to link" className="w-full justify-between font-normal" disabled={saving}>
+            <span className={selected ? '' : 'text-muted-foreground'}>{selected?.label ?? 'Select an order…'}</span>
+            <ChevronsUpDown className="size-4 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-(--radix-popover-trigger-width) min-w-72 p-2">
+          <Input aria-label="Search orders" placeholder="Search by order number, city or amount" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+          <ul role="listbox" className="mt-2 max-h-64 overflow-y-auto">
+            {!candidates && <li className="px-2 py-1.5 text-sm text-muted-foreground">Loading nearby orders…</li>}
+            {candidates && shown.length === 0 && !typedNumber && (
+              <li className="px-2 py-1.5 text-sm text-muted-foreground">{candidates.length === 0 ? 'No nearby orders in this store.' : 'None of the nearby orders match.'}</li>
+            )}
+            {shown.map((c) => {
+              const label = `${c.orderNumber} · ${formatPaisa(c.totalPaisa)}${c.city ? ` · ${c.city}` : ''} · ${formatKarachiTime(c.placedAt)}`;
+              return (
+                <li key={c.id} role="option" aria-selected={selected !== undefined && 'orderId' in selected.target && selected.target.orderId === c.id}>
+                  <button type="button" className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted" onClick={() => choose({ target: { orderId: c.id }, label })}>
+                    {label}
+                  </button>
+                </li>
+              );
+            })}
+            {typedNumber && !shown.some((c) => c.orderNumber.replace(/^#/, '') === typedNumber.replace(/^#/, '')) && (
+              <li role="option" aria-selected={false}>
+                <button type="button" className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted" onClick={() => choose({ target: { orderNumber: typedNumber }, label: `Order ${typedLabel}` })}>
+                  Look up order {typedLabel} in this store
+                </button>
+              </li>
+            )}
+          </ul>
+        </PopoverContent>
+      </Popover>
       <Input aria-label="Note" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <Button size="sm" disabled={saving || !selected} onClick={link}>
+        <Link2 className="size-4" />
+        {selected ? `Link to ${selected.label.split(' · ')[0]!.replace(/^Order /, '')}` : 'Link to order'}
+      </Button>
     </div>
   );
 }
