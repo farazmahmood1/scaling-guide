@@ -129,6 +129,21 @@ export function OverviewPage() {
 
   const cards: GridCard[] = [
     {
+      id: 'sales',
+      label: 'Sales',
+      node: (
+            <StatTile
+              label="Sales"
+              value={d ? formatPaisa(d.sales.total) : undefined}
+              basis={d ? `${d.sales.orders.toLocaleString('en-PK')} orders placed${BigInt(d.sales.discounts) > 0n ? `, after ${compactRupees(d.sales.discounts)} discounts` : ''}` : undefined}
+              period={`Orders placed ${periodLabel}`}
+              definition={DEFINITIONS.sales}
+              href={links.sales}
+              {...tileProps}
+            />
+      ),
+    },
+    {
       id: 'revenue',
       label: 'Delivered revenue',
       node: (
@@ -202,7 +217,7 @@ export function OverviewPage() {
             <StatTile
               label="Cash with PostEx"
               value={d ? formatPaisa(d.cash.awaiting) : undefined}
-              basis={d ? (BigInt(d.cash.owedToPostex) < 0n ? `Plus ${compactRupees(d.cash.owedToPostex.replace('-', ''))} we owe PostEx on parcels with no sale` : 'Delivered, not yet paid out') : undefined}
+              basis={d ? (BigInt(d.cash.owedToPostex) < 0n ? `${compactRupees(d.cash.owedToPostex.replace('-', ''))} more paid out or charged on parcels with no recorded sale` : 'Delivered, not yet paid out') : undefined}
               period={asOf}
               definition={DEFINITIONS.cash}
               href={links.cash}

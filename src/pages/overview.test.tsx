@@ -20,9 +20,9 @@ describe('the dashboard\'s tiles', () => {
   const html = page();
   const tiles = html.split('data-testid="stat-tile"').slice(1);
 
-  it('has the six headline figures', () => {
-    expect(tiles).toHaveLength(6);
-    for (const label of ['Delivered revenue', 'Net profit', 'Return rate', 'Delivery success', 'Cash with PostEx', 'Profit per parcel']) expect(html).toContain(label);
+  it('has the seven headline figures', () => {
+    expect(tiles).toHaveLength(7);
+    for (const label of ['Sales', 'Delivered revenue', 'Net profit', 'Return rate', 'Delivery success', 'Cash with PostEx', 'Profit per parcel']) expect(html).toContain(label);
   });
 
   it('states the period on every tile, and links every tile to the report behind it', () => {
@@ -30,7 +30,7 @@ describe('the dashboard\'s tiles', () => {
       // A period in words (a range, "All time" or "As of …"), never left out.
       expect(tile).toMatch(/\d{4}|All time|As of/);
       expect(tile).toContain('Open the report');
-      expect(tile).toMatch(/href="\/(reports|parcels)\?/);
+      expect(tile).toMatch(/href="\/(reports|parcels|orders)\?/);
     }
   });
 

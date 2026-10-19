@@ -257,6 +257,7 @@ export const tileLinks = (scope: Scope, asOf: string, today: string = todayKarac
   const report = (extra: Record<string, string> = {}) => `/reports?${carry(period, extra, { openEnded: 'all' })}`;
   const parcels = (stage: string) => `/parcels?${carry(period, { stage })}`;
   return {
+    sales: `/orders?${carry(period)}`,
     revenue: report({ tab: 'general-ledger', account: '4000' }),
     profit: report(),
     returnRate: parcels('returned'),
@@ -277,6 +278,8 @@ export const returnedParcelsLink = (period: Period, city: string): string => `/p
  * and two screens never define it differently.
  */
 export const DEFINITIONS = {
+  sales:
+    'What customers ordered on Shopify in the period, by the day each order was placed: order totals including shipping, cancelled orders and PR packages left out. Nothing here is money yet: an order only becomes delivered revenue once PostEx delivers it, and some will be returned or never shipped.',
   revenue:
     "Sales revenue posted for parcels PostEx delivered in the period, plus partners' consignment sales, less any that came back after delivery. A parcel that is placed, confirmed, booked or still in transit adds nothing. PR packages never count.",
   netProfit: 'Income less expenses over the period, read from the books: delivered revenue, less the cost of the goods, PostEx charges, marketing, write-offs and other expenses.',

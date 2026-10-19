@@ -25,7 +25,7 @@ describe('the default layout', () => {
   });
 
   it('puts three tiles across when wide, two on a tablet and one on a phone', () => {
-    const tilesAcross = (bp: (typeof BREAKPOINT_KEYS)[number]) => defaultLayouts()[bp].filter((p) => ['revenue', 'profit', 'returnRate'].includes(p.i)).filter((p) => p.y === 0).length;
+    const tilesAcross = (bp: (typeof BREAKPOINT_KEYS)[number]) => defaultLayouts()[bp].filter((p) => ['sales', 'revenue', 'profit'].includes(p.i)).filter((p) => p.y === 0).length;
     expect(tilesAcross('lg')).toBe(3);
     expect(tilesAcross('md')).toBe(2);
     expect(tilesAcross('xs')).toBe(1);

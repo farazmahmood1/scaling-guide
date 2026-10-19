@@ -524,6 +524,7 @@ export interface RateFigure {
 /** The dashboard's headline figures for one period and brand. Money is integer paisa in strings. */
 export interface DashboardData {
   period: { from: string | null; to: string | null; asOf: string; store: StoreKey | null };
+  sales: { orders: number; total: string; gross: string; discounts: string; shipping: string };
   deliveredRevenue: { parcels: string; consignment: string; total: string; parcelCount: number };
   profit: { income: string; expenses: string; netProfit: string };
   returnRate: RateFigure;
