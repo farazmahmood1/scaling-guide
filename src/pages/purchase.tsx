@@ -4,7 +4,6 @@ import { useSearchParams } from 'react-router';
 
 import { BillsList } from '@/components/purchase-bills';
 import { NewOrder, OrderDetail, OrdersList } from '@/components/purchase-orders';
-import { QuotesStep } from '@/components/purchase-quotes';
 import { RequestsStep } from '@/components/purchase-requests';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,7 +24,6 @@ const waitingAt = (requests: PurchaseRequest[], orders: PurchaseOrderSummary[], 
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   return {
     requests: open + quoted === 0 ? 'Nothing waiting' : plural(open + quoted, 'request to order', 'requests to order'),
-    quotes: quoted === 0 ? 'Optional' : plural(quoted, 'quoted request', 'quoted requests'),
     orders: toCome === 0 ? 'No open orders' : plural(toCome, 'order waiting for goods', 'orders waiting for goods'),
     receive: toCome === 0 ? 'Nothing to receive' : plural(toCome, 'order to receive', 'orders to receive'),
     bills: toBill + toPay === 0 ? 'Nothing to bill or pay' : [toBill && plural(toBill, 'to bill', 'to bill'), toPay && plural(toPay, 'to pay', 'to pay')].filter(Boolean).join(' · '),
@@ -34,13 +32,12 @@ const waitingAt = (requests: PurchaseRequest[], orders: PurchaseOrderSummary[], 
 
 const GUIDE: Record<StepKey, string> = {
   requests: 'Write down what needs buying, or take a suggestion from "What to order now". Then tick the requests for one supplier and create the order.',
-  quotes: 'Optional. Use it when you ask several suppliers for prices and want to compare. If the supplier just sends a price on WhatsApp, skip this and put the price on the order.',
   orders: 'The orders you have placed with suppliers. An order says what you bought, from whom, at what price. Open one to see its next step.',
   receive: 'When the goods arrive, open the order and enter how many came. This is what puts them on the shelf (Inventory) at the order price, so profit uses the right cost.',
   bills: 'When the supplier sends the bill, record it against the order: it must match what was ordered and received. Then record the payment when you pay.',
 };
 
-/** The five steps in plain words, open the first time. */
+/** The four steps in plain words, open the first time. */
 function HowBuyingWorks() {
   const [open, setOpen] = useState(false);
   return (
@@ -56,9 +53,6 @@ function HowBuyingWorks() {
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
           <li>
             <span className="font-medium text-foreground">Request:</span> someone writes what is needed (or presses Request on a suggestion).
-          </li>
-          <li>
-            <span className="font-medium text-foreground">Quote (optional):</span> record suppliers' prices to compare them.
           </li>
           <li>
             <span className="font-medium text-foreground">Order:</span> tick the requests, choose the supplier, type the agreed price, place the order. You still send the order to
@@ -77,8 +71,7 @@ function HowBuyingWorks() {
 }
 
 /**
- * Buying, in its five steps: a request says what is needed, quotes say what it costs (optional),
- * an order commits to one supplier, receiving brings the goods into stock at their cost, and the
+ * Buying, in its four steps: a request says what is needed, an order commits to one supplier, receiving brings the goods into stock at their cost, and the
  * supplier's bill is paid. The step and the open order are in the address, so a place in the flow
  * can be shared. Each order says what it is waiting for and offers that step.
  */
@@ -116,7 +109,7 @@ export function PurchasePage() {
       <HowBuyingWorks />
 
       <nav aria-label="Purchase steps" className="mb-4">
-        <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {STEPS.map((s, i) => (
             <li key={s.key}>
               <button
@@ -132,7 +125,6 @@ export function PurchasePage() {
                 <span className="flex items-center gap-2 font-medium">
                   <span className={cn('flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs tabular-nums', step === s.key && 'bg-primary text-primary-foreground')}>{i + 1}</span>
                   {s.label}
-                  {s.key === 'quotes' && <span className="text-xs font-normal text-muted-foreground">(optional)</span>}
                 </span>
                 <span className="text-xs text-muted-foreground">{waiting ? waiting[s.key] : ' '}</span>
               </button>
@@ -147,7 +139,6 @@ export function PurchasePage() {
       </p>
 
       {step === 'requests' && <RequestsStep onOrdered={(po) => { changed(); go('orders', po); }} />}
-      {step === 'quotes' && <QuotesStep onOrdered={(po) => { changed(); go('orders', po); }} />}
 
       {step === 'orders' && (
         <div className="grid gap-6 lg:grid-cols-3">

@@ -4,10 +4,9 @@ import { karachiLocal } from '@/lib/format';
 /** Today's date in Karachi as `YYYY-MM-DD`: the day a document is dated unless a person says otherwise. */
 export const today = (): string => karachiLocal(new Date()).slice(0, 10);
 
-/** The five steps of buying, in order; the screen is organised around them. */
+/** The four steps of buying, in order; the screen is organised around them. */
 export const STEPS = [
   { key: 'requests', label: 'Request', hint: 'Someone says what is needed' },
-  { key: 'quotes', label: 'Quote', hint: 'Vendors say what it costs' },
   { key: 'orders', label: 'Order', hint: 'We commit to one vendor' },
   { key: 'receive', label: 'Receive', hint: 'The goods arrive' },
   { key: 'bills', label: 'Bill', hint: 'The vendor bills, we pay' },

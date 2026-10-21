@@ -41,7 +41,7 @@ export const MODULES: readonly Module[] = [
   { key: 'returns', path: '/returns', label: 'Returns', summary: 'Parcels PostEx sent back, waiting to be checked in.', group: 'Daily work', requires: 'returns.read' },
   { key: 'reconciliation', path: '/reconciliation', label: 'Reconciliation', summary: 'Parcels, orders and cash that do not agree.', group: 'Daily work', requires: 'reconciliation.read' },
   { key: 'inventory', path: '/inventory', label: 'Inventory', summary: 'Stock per product and location, counts and corrections.', group: 'Stock and buying', requires: 'stock.read' },
-  { key: 'purchase', path: '/purchase', label: 'Purchase', summary: 'Requests, quotations, purchase orders, receipts and vendor bills.', group: 'Stock and buying', requires: 'purchasing.read' },
+  { key: 'purchase', path: '/purchase', label: 'Purchase', summary: 'Requests, purchase orders, receipts and vendor bills.', group: 'Stock and buying', requires: 'purchasing.read' },
   { key: 'partners', path: '/partners', label: 'Partners', summary: 'Stock at retail partners and their sales sheets.', group: 'Stock and buying', requires: 'partners.read' },
   { key: 'pr', path: '/pr', label: 'PR', summary: 'Influencers, their codes, PR sends and posts.', group: 'Stock and buying', requires: 'pr.read' },
   { key: 'accounting', path: '/accounting', label: 'Accounting', summary: 'Invoices, bills, payments, month close and opening balances.', group: 'Money', requires: 'accounting.read' },
