@@ -22,6 +22,7 @@ import {
   DEFAULT_RANGE,
   DEFINITIONS,
   MIN_CITY_OUTCOMES,
+  SUMMARIES,
   type Period,
   asOfText,
   compactRupees,
@@ -138,7 +139,24 @@ export function OverviewPage() {
               basis={d ? `${d.sales.orders.toLocaleString('en-PK')} orders placed${BigInt(d.sales.discounts) > 0n ? `, after ${compactRupees(d.sales.discounts)} discounts` : ''}` : undefined}
               period={`Orders placed ${periodLabel}`}
               definition={DEFINITIONS.sales}
+              summary={SUMMARIES.sales}
               href={links.sales}
+              {...tileProps}
+            />
+      ),
+    },
+    {
+      id: 'cancelled',
+      label: 'Cancelled orders',
+      node: (
+            <StatTile
+              label="Cancelled orders"
+              value={d ? d.sales.cancelled.orders.toLocaleString('en-PK') : undefined}
+              basis={d ? (d.sales.cancelled.orders === 0 ? 'None cancelled before shipping' : `${formatPaisa(d.sales.cancelled.total)} of orders, cancelled before a parcel left`) : undefined}
+              period={`Orders placed ${periodLabel}`}
+              definition={DEFINITIONS.cancelled}
+              summary={SUMMARIES.cancelled}
+              href={links.cancelled}
               {...tileProps}
             />
       ),
@@ -153,6 +171,7 @@ export function OverviewPage() {
               basis={d ? `${d.deliveredRevenue.parcelCount.toLocaleString('en-PK')} delivered parcels${BigInt(d.deliveredRevenue.consignment) > 0n ? `, partners ${compactRupees(d.deliveredRevenue.consignment)}` : ''}` : undefined}
               period={periodLabel}
               definition={DEFINITIONS.revenue}
+              summary={SUMMARIES.revenue}
               href={links.revenue}
               {...tileProps}
             />
@@ -168,6 +187,7 @@ export function OverviewPage() {
               basis={d ? `Income ${compactRupees(d.profit.income)} less expenses ${compactRupees(d.profit.expenses)}` : undefined}
               period={periodLabel}
               definition={DEFINITIONS.netProfit}
+              summary={SUMMARIES.netProfit}
               href={links.profit}
               {...tileProps}
             />
@@ -175,14 +195,15 @@ export function OverviewPage() {
     },
     {
       id: 'returnRate',
-      label: 'Return rate',
+      label: 'Returns',
       node: (
             <StatTile
-              label="Return rate"
-              value={d ? rateText(d.returnRate) : undefined}
-              basis={d ? rateBasis(d.returnRate, 'parcels returned') : undefined}
+              label="Returns"
+              value={d ? `${d.returns.parcels.toLocaleString('en-PK')} · ${rateText(d.returnRate)}` : undefined}
+              basis={d ? returnsBasis(d) : undefined}
               period={`Parcels booked ${periodLabel}`}
               definition={DEFINITIONS.returnRate}
+              summary={SUMMARIES.returns}
               href={links.returnRate}
               {...tileProps}
             />
@@ -197,6 +218,7 @@ export function OverviewPage() {
               value={d ? rateText(d.deliverySuccess.success) : undefined}
               basis={d ? `${rateBasis(d.deliverySuccess.success, 'parcels delivered')}; ${rateText(d.deliverySuccess.firstAttempt)} on the first attempt` : undefined}
               period={`Parcels booked ${periodLabel}`}
+              summary={SUMMARIES.deliverySuccess}
               definition={
                 <>
                   {DEFINITIONS.deliverySuccess}
@@ -220,6 +242,7 @@ export function OverviewPage() {
               basis={d ? (BigInt(d.cash.owedToPostex) < 0n ? `${compactRupees(d.cash.owedToPostex.replace('-', ''))} more paid out or charged on parcels with no recorded sale` : 'Delivered, not yet paid out') : undefined}
               period={asOf}
               definition={DEFINITIONS.cash}
+              summary={SUMMARIES.cash}
               href={links.cash}
               {...tileProps}
             />
@@ -235,6 +258,7 @@ export function OverviewPage() {
               basis={d ? (d.profitPerParcel.parcels === 0 ? 'No parcels with postings in this period' : `Across ${d.profitPerParcel.parcels.toLocaleString('en-PK')} parcels, ${compactRupees(d.profitPerParcel.total)} in all`) : undefined}
               period={periodLabel}
               definition={DEFINITIONS.profitPerParcel}
+              summary={SUMMARIES.profitPerParcel}
               href={links.profitPerParcel}
               {...tileProps}
             />
@@ -468,6 +492,13 @@ export function OverviewPage() {
     </>
   );
 }
+
+/** What the Returns tile's count is made of: back with us, on the way, the COD that came back, and the rate's basis. */
+const returnsBasis = (d: DashboardData): string => {
+  if (d.returns.parcels === 0) return `No returns · ${rateBasis(d.returnRate, 'parcels returned')}`;
+  const parts = [`${d.returns.back} back with us`, ...(d.returns.comingBack > 0 ? [`${d.returns.comingBack} on the way back`] : []), `${compactRupees(d.returns.value)} COD`];
+  return `${parts.join(', ')} · rate: ${rateBasis(d.returnRate, 'finished parcels')}`;
+};
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="py-10 text-center text-sm text-muted-foreground">{children}</p>;

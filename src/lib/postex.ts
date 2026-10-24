@@ -4,6 +4,8 @@ import type { ListQuery } from '@/lib/list-query';
 /**
  * PostEx status codes in words (CLAUDE.md lists the ones verified on live data). A code not in
  * the list still renders: PostEx's own message, marked as one we do not know yet, never a crash.
+ * The labels stay general ("a PostEx warehouse") because the message, which names the city or
+ * warehouse, is shown beneath them.
  */
 export const STATUS_LABELS: Record<string, string> = {
   '0002': 'Cancelled by us in PostEx',
@@ -12,6 +14,17 @@ export const STATUS_LABELS: Record<string, string> = {
   '0008': 'Under review at PostEx',
   '0013': 'Delivery attempted',
   '0040': 'Return started',
+  '0001': 'At our warehouse',
+  '0036': 'At our warehouse',
+  '0031': 'Departed to PostEx warehouse',
+  '0003': 'Received at a PostEx warehouse',
+  '0033': 'Departed to the next stop',
+  '0035': 'Arrived at a PostEx transit hub',
+  '0038': 'Waiting for delivery',
+  '0004': 'Out for delivery',
+  '0039': 'Waiting for return',
+  '0037': 'Return heading to the next stop',
+  '0032': 'Heading back to our warehouse',
 };
 
 /** Why an attempt failed (`0013`), as PostEx abbreviates it. */
@@ -20,6 +33,23 @@ export const FAILURE_REASONS: Record<string, string> = {
   CNA: 'Customer not available',
   ICA: 'Incomplete address',
   OPN: 'Customer wanted to open it first',
+  HCR: 'Customer asked to hold delivery',
+  PNA: 'Customer had no payment ready',
+};
+
+// Built from the table above, so a reason added there is also found in PostEx's message.
+const REASON_IN_TEXT = new RegExp(`\\b(${Object.keys(FAILURE_REASONS).join('|')})\\b`);
+
+/** The reason abbreviation in PostEx's attempt message ("Attempt Made: HCR(HOLD ON CONSIGNEE REQUEST)"), or the abbreviation itself. */
+export const failureAbbr = (text: string | null | undefined): string | null => REASON_IN_TEXT.exec(text ?? '')?.[1] ?? null;
+
+/**
+ * A stored last-failure reason in words. The sync stores the abbreviation; a parcel stored before
+ * an abbreviation was known has PostEx's whole message instead. Anything else shows as it is.
+ */
+export const describeFailureReason = (stored: string): string => {
+  const abbr = failureAbbr(stored);
+  return (abbr && FAILURE_REASONS[abbr]) || stored;
 };
 
 export interface StatusText {
@@ -34,7 +64,7 @@ export const describeStatus = (code: string | null, message?: string | null): St
   // An event with no code at all: PostEx's words if it gave any, never "Status code ".
   if (!code.trim()) return { label: message?.trim() || 'Status update', known: false, reason: null };
   const label = STATUS_LABELS[code];
-  const abbr = /\b(RFD|CNA|ICA|OPN)\b/.exec(message ?? '')?.[1];
+  const abbr = failureAbbr(message);
   const reason = code === '0013' && abbr ? (FAILURE_REASONS[abbr] ?? null) : null;
   if (label) return { label, known: true, reason };
   const text = message?.trim();

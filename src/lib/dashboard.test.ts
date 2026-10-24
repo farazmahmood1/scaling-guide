@@ -108,7 +108,9 @@ describe('where each figure\'s report is', () => {
   it('opens each tile on its own period, and leaves the brand to the sidebar', () => {
     expect(links.revenue).toBe('/reports?tab=general-ledger&account=4000&from=2026-09-01&to=2026-09-17');
     expect(links.profit).toBe('/reports?from=2026-09-01&to=2026-09-17');
-    expect(links.returnRate).toBe('/parcels?stage=returned&from=2026-09-01&to=2026-09-17');
+    // Both stages of a return: on the way back, and back.
+    expect(links.returnRate).toBe('/parcels?stage=returning%2Creturned&from=2026-09-01&to=2026-09-17');
+    expect(links.cancelled).toBe('/orders?state=cancelled&from=2026-09-01&to=2026-09-17');
     expect(links.deliverySuccess).toBe('/parcels?stage=delivered&from=2026-09-01&to=2026-09-17');
     for (const href of Object.values(links)) expect(href).not.toContain('store=');
   });
@@ -120,14 +122,14 @@ describe('where each figure\'s report is', () => {
   it('opens each tile on a hand-picked period, whatever the named range says', () => {
     const picked = tileLinks({ range: 'all', custom: { from: '2026-08-01', to: '2026-08-15' } }, '2026-08-15', today);
     expect(picked.profit).toBe('/reports?from=2026-08-01&to=2026-08-15');
-    expect(picked.returnRate).toBe('/parcels?stage=returned&from=2026-08-01&to=2026-08-15');
+    expect(picked.returnRate).toBe('/parcels?stage=returning%2Creturned&from=2026-08-01&to=2026-08-15');
   });
 
   it('marks all time for the Reports screen, and leaves the flag off the parcels list', () => {
     const all = tileLinks({ range: 'all' }, '2026-09-17', today);
     expect(all.profit).toBe('/reports?all=1');
-    expect(all.returnRate).toBe('/parcels?stage=returned');
-    expect(returnedParcelsLink({ from: '2026-09-01', to: '2026-09-17' }, 'Lahore')).toBe('/parcels?stage=returned&city=Lahore&from=2026-09-01&to=2026-09-17');
+    expect(all.returnRate).toBe('/parcels?stage=returning%2Creturned');
+    expect(returnedParcelsLink({ from: '2026-09-01', to: '2026-09-17' }, 'Lahore')).toBe('/parcels?stage=returning%2Creturned&city=Lahore&from=2026-09-01&to=2026-09-17');
   });
 });
 

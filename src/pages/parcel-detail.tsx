@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
-import { ArrowLeft, PackageCheck, PackageX } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 
+import { useAuth } from '@/auth/auth-context';
 import { Fact } from '@/components/fact';
 import { ParcelTimeline } from '@/components/parcel-timeline';
+import { CheckInControls, ShopifySyncCell } from '@/components/return-actions';
 import { FactsSkeleton, Line, Loading, SmallLine } from '@/components/skeletons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -86,7 +88,8 @@ function ParcelSkeleton() {
 export function ParcelDetailPage() {
   const { id = '' } = useParams();
   const { data, error, reload } = useApi<{ parcel: ParcelDetail }>(`/api/v1/parcels/${encodeURIComponent(id)}`);
-  const { pending, checkIn } = useCheckIn(reload);
+  const { pending, checkIn, retryShopify, cancelInShopify, busyShopify } = useCheckIn(reload);
+  const { can } = useAuth();
   const parcel = data?.parcel;
   const entries = useMemo(() => (parcel ? timelineEntries(parcel.events) : []), [parcel]);
 
@@ -257,34 +260,58 @@ export function ParcelDetailPage() {
             </CardContent>
           </Card>
 
-          {parcel.stage === 'returned' && (
+          {(parcel.stage === 'returning' || parcel.stage === 'returned' || parcel.checkIn) && (
             <Card>
               <CardHeader>
                 <CardTitle>Warehouse check-in</CardTitle>
-                <CardDescription>PostEx says this parcel is back. Until it is checked in, its stock is not on the shelf.</CardDescription>
+                <CardDescription>
+                  {parcel.stage === 'returning'
+                    ? 'PostEx is bringing this parcel back. Check it in once it is in your hands; until then its stock is not on the shelf.'
+                    : 'PostEx says this parcel is back. Until it is checked in, its stock is not on the shelf.'}
+                </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 {shown ? (
-                  <p className="text-sm">
-                    <Badge variant={shown === 'damaged' ? 'destructive' : 'secondary'}>{shown === 'damaged' ? 'Damaged' : 'Restocked'}</Badge>
-                    {parcel.checkIn && (
-                      <span className="ml-2 text-muted-foreground">
-                        by {parcel.checkIn.by}, {formatKarachiFull(parcel.checkIn.at)}
-                        {parcel.checkIn.note ? ` · ${parcel.checkIn.note}` : ''}
-                      </span>
+                  <>
+                    <p className="text-sm">
+                      <Badge variant={shown === 'damaged' ? 'destructive' : shown === 'mixed' ? 'outline' : 'secondary'}>{shown === 'damaged' ? 'Damaged' : shown === 'mixed' ? 'Split' : 'Restocked'}</Badge>
+                      {parcel.checkIn && (
+                        <span className="ml-2 text-muted-foreground">
+                          by {parcel.checkIn.by}, {formatKarachiFull(parcel.checkIn.at)}
+                          {parcel.checkIn.note ? ` · ${parcel.checkIn.note}` : ''}
+                        </span>
+                      )}
+                    </p>
+                    {parcel.checkIn && parcel.checkIn.lines.length > 0 && (
+                      <ul className="text-sm text-muted-foreground">
+                        {parcel.checkIn.lines.map((l) => (
+                          <li key={l.variantId}>
+                            {l.title}: {l.restocked} on the shelf{l.damaged > 0 ? `, ${l.damaged} damaged` : ''}
+                          </li>
+                        ))}
+                      </ul>
                     )}
-                  </p>
-                ) : (
-                  <div className="flex gap-2">
-                    <Button variant="outline" disabled={busy} onClick={() => void checkIn(parcel.id, parcel.trackingNumber, 'restocked')}>
-                      <PackageCheck className="size-4" />
-                      Restock
-                    </Button>
-                    <Button variant="destructive" disabled={busy} onClick={() => void checkIn(parcel.id, parcel.trackingNumber, 'damaged')}>
-                      <PackageX className="size-4" />
-                      Damaged
-                    </Button>
+                    {parcel.checkIn && (
+                      <div className="text-sm">
+                        <p className="mb-1 font-medium">Shopify</p>
+                        <ShopifySyncCell
+                          detailed
+                          sync={parcel.shopifySync}
+                          trackingNumber={parcel.trackingNumber}
+                          canAct={can('returns.checkin') && parcel.orderId !== null}
+                          busy={busyShopify === parcel.id}
+                          onRetry={() => void retryShopify(parcel.id, parcel.trackingNumber)}
+                          onCancel={() => void cancelInShopify(parcel.id, parcel.trackingNumber)}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : can('returns.checkin') ? (
+                  <div className="flex justify-start">
+                    <CheckInControls size="default" shipmentId={parcel.id} trackingNumber={parcel.trackingNumber} busy={busy} onCheckIn={(outcome, lines) => checkIn(parcel.id, parcel.trackingNumber, outcome, lines)} />
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not checked in yet.</p>
                 )}
               </CardContent>
             </Card>

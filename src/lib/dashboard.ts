@@ -258,9 +258,11 @@ export const tileLinks = (scope: Scope, asOf: string, today: string = todayKarac
   const parcels = (stage: string) => `/parcels?${carry(period, { stage })}`;
   return {
     sales: `/orders?${carry(period)}`,
+    cancelled: `/orders?${carry(period, { state: 'cancelled' })}`,
     revenue: report({ tab: 'general-ledger', account: '4000' }),
     profit: report(),
-    returnRate: parcels('returned'),
+    // Both stages of a return: on the way back, and back with us.
+    returnRate: parcels('returning,returned'),
     deliverySuccess: parcels('delivered'),
     // The COD receivable's ledger from the start, so its closing balance is the figure on the tile.
     cash: `/reports?${carry({ from: '2000-01-01', to: asOf }, { tab: 'general-ledger', account: '1100' })}`,
@@ -268,9 +270,21 @@ export const tileLinks = (scope: Scope, asOf: string, today: string = todayKarac
   };
 };
 
-export const returnedParcelsLink = (period: Period, city: string): string => `/parcels?${carry(period, { stage: 'returned', city })}`;
+export const returnedParcelsLink = (period: Period, city: string): string => `/parcels?${carry(period, { stage: 'returning,returned', city })}`;
 
 // ---- Definitions ----
+
+/** Each tile's figure in a few words, always on show: what it is, and what it is not. The full definition is in DEFINITIONS. */
+export const SUMMARIES = {
+  sales: 'Value of orders placed. Not money collected yet.',
+  cancelled: 'Orders cancelled before a parcel left.',
+  revenue: 'Revenue from parcels PostEx delivered (net sales).',
+  netProfit: 'Revenue less every cost, from the books.',
+  returns: 'Parcels refused and coming back, or back. Count · return rate.',
+  deliverySuccess: 'Share of finished parcels that were delivered.',
+  cash: 'COD PostEx has collected and not paid you yet.',
+  profitPerParcel: 'Average profit of each parcel, after its costs.',
+} as const;
 
 /**
  * What every figure on the dashboard means, in the words of the report behind it. One place: a
@@ -279,12 +293,15 @@ export const returnedParcelsLink = (period: Period, city: string): string => `/p
  */
 export const DEFINITIONS = {
   sales:
-    'What customers ordered on Shopify in the period, by the day each order was placed: order totals including shipping, cancelled orders and PR packages left out. Nothing here is money yet: an order only becomes delivered revenue once PostEx delivers it, and some will be returned or never shipped.',
+    'What customers ordered on Shopify in the period, by the day each order was placed: order totals after discounts, with shipping and tax. Left out: PR packages, and orders cancelled before anything shipped (they are under Cancelled orders). An order whose parcel was refused still counts here even if it was cancelled in Shopify later; it shows under Returns. Nothing here is money yet: an order only becomes delivered revenue once PostEx delivers it.',
+  cancelled:
+    'Orders placed in the period and cancelled before a parcel left: cancelled in Shopify or at the confirmation desk, or cancelled in PostEx before pickup. A parcel that was refused and came back is not a cancellation; it is a return.',
   revenue:
-    "Sales revenue posted for parcels PostEx delivered in the period, plus partners' consignment sales, less any that came back after delivery. A parcel that is placed, confirmed, booked or still in transit adds nothing. PR packages never count.",
+    "Sales revenue posted for parcels PostEx delivered in the period, plus partners' consignment sales, less any that came back after delivery: the business's revenue (net sales). It is not cash yet: PostEx pays the COD out later (Cash with PostEx). A parcel that is placed, confirmed, booked or still in transit adds nothing. PR packages never count.",
   netProfit: 'Income less expenses over the period, read from the books: delivered revenue, less the cost of the goods, PostEx charges, marketing, write-offs and other expenses.',
-  returnRate: 'Parcels returned to us ÷ parcels that were delivered or returned, among parcels booked in the period. Parcels still out are not counted, and PR packages are excluded.',
-  deliverySuccess: 'Parcels delivered ÷ parcels with a final outcome (delivered, returned or cancelled), among parcels booked in the period. Parcels still out are not counted; PR packages are excluded.',
+  returnRate:
+    'Parcels whose delivery failed and that PostEx is bringing back or has brought back, among parcels booked in the period, PR packages excluded. A parcel counts from the moment PostEx starts its return, whatever PostEx reports after that. "Back" means PostEx has handed it to us: check it in on the Returns page. The rate is returns ÷ parcels delivered or returned; parcels still out are not counted. These are PostEx returns; a refund or return recorded only in Shopify is on the Reconciliation page.',
+  deliverySuccess: 'Parcels delivered ÷ parcels with an outcome (delivered, returned or on the way back, or cancelled), among parcels booked in the period. Parcels still out are not counted; PR packages are excluded.',
   firstAttempt: 'Of the parcels delivered, the share that arrived without a failed delivery attempt on the way.',
   cash: "Cash on delivered parcels that PostEx holds and has not paid out yet, as of the date shown: the COD collected, less PostEx's charges, less the payouts already received.",
   ageing: 'How long that cash has been waiting, in days since each parcel was delivered, as of the date shown. Older cash is more likely to be overdue.',
@@ -292,7 +309,7 @@ export const DEFINITIONS = {
   trend: 'Revenue and net profit for each calendar month (Karachi), from the books, for the last six months. Revenue is posted when a parcel is delivered, so a month can show a sale and, later, its reversal.',
   returnTrend: 'The return rate, as defined above, for parcels booked in each of the last six months. A recent month fills in as its parcels reach an outcome, so the latest bar can still move.',
   cityReturns: `The return rate by delivery city, as defined above, for the period. Cities with fewer than ${MIN_CITY_OUTCOMES} finished parcels are left out, because a rate on a handful of parcels says nothing.`,
-  funnel: 'Of the online orders placed in the period, how many got as far as each step: confirmed by the desk, booked with PostEx, moving, then delivered or returned. Each step counts orders that reached it or went further, so the gap between two steps is where orders dropped off or are still waiting. A parcel on its way back is not returned until it arrives. PR packages and partners\' sales are not counted.',
+  funnel: 'Of the online orders placed in the period, how many got as far as each step: confirmed by the desk, booked with PostEx, moving, then delivered or returned. Each step counts orders that reached it or went further, so the gap between two steps is where orders dropped off or are still waiting. A parcel on its way back counts as returned, as in Returns. PR packages and partners\' sales are not counted.',
   topProducts: 'The products that sold the most units, best first: units delivered in the period, net of any returned after delivery, and what they sold for. Orders still on their way are not counted until they are delivered. PR packages are not counted.',
   queue: 'Online orders not booked yet that carry no status tag in Shopify: nobody has confirmed, cancelled or chased them yet. Newest first. Tags from other apps, such as reviews, do not count.',
   recentOrders: "The newest online orders and what each one made: its revenue, less the cost of the goods, PostEx's charges with their tax, marketing and write-offs, over all its parcels, from the books. Shown once an order is delivered or returned. Before that the books hold only part of the picture, so no figure is given.",

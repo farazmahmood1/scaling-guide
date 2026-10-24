@@ -9,6 +9,7 @@ import type { Permission } from '@/lib/api';
 
 export const CARD_IDS = [
   'sales',
+  'cancelled',
   'revenue',
   'profit',
   'returnRate',
@@ -67,6 +68,7 @@ type Size = Record<BreakpointKey, readonly [number, number]>;
 const tile: Size = { lg: [4, 9], md: [4, 10], sm: [2, 12], xs: [1, 10] };
 const SIZES: Record<CardId, Size> = {
   sales: tile,
+  cancelled: tile,
   revenue: tile,
   profit: tile,
   returnRate: tile,

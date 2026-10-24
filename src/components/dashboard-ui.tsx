@@ -110,6 +110,7 @@ export function StatTile({
   basis,
   period,
   definition,
+  summary,
   href,
   loading,
   error,
@@ -119,6 +120,8 @@ export function StatTile({
   basis?: ReactNode;
   period: string;
   definition: ReactNode;
+  /** What the figure is, in a few words, always on show; the full definition stays behind the icon. */
+  summary?: string;
   href: string;
   loading?: boolean;
   error?: string;
@@ -130,6 +133,7 @@ export function StatTile({
         <Definition term={label}>{definition}</Definition>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-4">
+        {summary && <p className="-mt-1 text-xs text-muted-foreground">{summary}</p>}
         {loading ? (
           // The figure and the line under it, at their sizes, so the tile is its final height from the start.
           <div role="status" aria-label={`Loading ${label}`}>

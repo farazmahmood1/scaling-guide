@@ -50,8 +50,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (response.status === 403) window.dispatchEvent(new Event(FORBIDDEN_EVENT));
     throw new ApiError(failure?.message ?? response.statusText, response.status, failure?.code);
   }
-  // Signing in and saving a column choice change no business figure, so they leave cached reads alone.
-  if (init.method && init.method !== 'GET' && !path.startsWith('/api/v1/auth/')) window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
+  // Signing in and saving a column choice change no business figure, so they leave cached reads alone. Asking for
+  // the syncs does not either, by itself: the live sync refreshes the screen only when new data has landed.
+  if (init.method && init.method !== 'GET' && !path.startsWith('/api/v1/auth/') && !path.startsWith('/api/v1/sync/')) window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
   return body as T;
 }
 
@@ -524,12 +525,15 @@ export interface RateFigure {
 /** The dashboard's headline figures for one period and brand. Money is integer paisa in strings. */
 export interface DashboardData {
   period: { from: string | null; to: string | null; asOf: string; store: StoreKey | null };
-  sales: { orders: number; total: string; gross: string; discounts: string; shipping: string };
+  /** Orders placed in the period, cancelled-before-shipping and PR left out; `cancelled` is those cancellations. */
+  sales: { orders: number; total: string; gross: string; discounts: string; shipping: string; cancelled: { orders: number; total: string } };
   deliveredRevenue: { parcels: string; consignment: string; total: string; parcelCount: number };
   profit: { income: string; expenses: string; netProfit: string };
   returnRate: RateFigure;
+  /** The parcels behind the return rate: back with us, and still on the way back. `value` is the COD they were sent to collect. */
+  returns: { parcels: number; back: number; comingBack: number; value: string };
   deliverySuccess: {
-    counts: { booked: number; delivered: number; returned: number; cancelled: number; inFlight: number; deliveredFirstAttempt: number };
+    counts: { booked: number; delivered: number; returned: number; returnedBack: number; returning: number; cancelled: number; inFlight: number; deliveredFirstAttempt: number; returnedValue: string };
     success: RateFigure;
     firstAttempt: RateFigure;
   };
@@ -1010,7 +1014,8 @@ export interface ParcelRow {
   orderNumber: string | null;
   orderRef: string | null;
   pr: boolean;
-  checkedIn: 'restocked' | 'damaged' | null;
+  /** `mixed`: split product by product, part on the shelf and part damaged. */
+  checkedIn: 'restocked' | 'damaged' | 'mixed' | null;
   /** For a checked-in parcel, the latest attempt to carry the check-in to Shopify. */
   shopifySync: ShopifySyncState | null;
 }
@@ -1031,7 +1036,9 @@ export interface ParcelDetail extends ParcelRow {
   events: Array<{ code: string; message: string; occurredAt: string | null }>;
   charges: Array<{ kind: string; amountPaisa: string }>;
   payouts: Array<{ cprNumber: string; paidAt: string | null; amountPaisa: string }>;
-  checkIn: { outcome: 'restocked' | 'damaged'; at: string; by: string; note: string | null } | null;
+  checkIn: { outcome: 'restocked' | 'damaged' | 'mixed'; at: string; by: string; note: string | null; lines: Array<{ variantId: string; title: string; restocked: number; damaged: number }> } | null;
+  /** What the parcel carried out of the warehouse, per product: what a check-in accounts for. */
+  units: ParcelUnit[];
   order: {
     id: string;
     number: string;
@@ -1081,14 +1088,103 @@ export interface OrderPage {
 
 // ---- Shopify write-back, damaged register, counts, expenses, journal ----
 
-/** Where a return check-in stands in Shopify: done, nothing to do (skipped), or refused (failed). */
+/**
+ * Where a return check-in stands in Shopify: done, nothing to do (skipped), refused (failed), or
+ * waiting on the order (pending: still open in Shopify with the returned units committed to it,
+ * `cancellable` when it may be cancelled from here).
+ */
 export interface ShopifySyncState {
-  outcome: 'done' | 'skipped' | 'failed';
+  outcome: 'done' | 'skipped' | 'failed' | 'pending';
   message: string;
+  cancellable: boolean;
+}
+
+export interface ParcelUnit {
+  variantId: string;
+  title: string;
+  sku: string | null;
+  qty: number;
+}
+
+// ---- Sync freshness ----
+
+export interface SyncJobFreshness {
+  name: string;
+  everyMs: number;
+  lastStartedAt: string | null;
+  lastSucceededAt: string | null;
+  lastStatus: 'running' | 'succeeded' | 'failed' | null;
+  lastError: string | null;
+  running: boolean;
+}
+
+/** How fresh the platform's copy of Shopify and PostEx is. `stale`: its sync has not succeeded for several intervals. */
+export interface SyncStatus {
+  now: string;
+  shopify: { lastSyncedAt: string | null; stale: boolean };
+  postex: { lastSyncedAt: string | null; stale: boolean };
+  lastWebhookAt: string | null;
+  jobs: SyncJobFreshness[];
+}
+
+export interface SyncRunResponse {
+  ran: Array<{ job: string; status: 'succeeded' | 'failed' | 'skipped'; durationMs: number; error?: string }>;
+  status: SyncStatus;
+}
+
+// ---- Returns reconciliation ----
+
+export type ReturnIssueKind =
+  | 'parcel_without_order'
+  | 'not_checked_in'
+  | 'shopify_order_still_open'
+  | 'shopify_stock_not_updated'
+  | 'shopify_restocked_twice'
+  | 'shopify_order_missing'
+  | 'shopify_return_not_in_postex'
+  | 'cancelled_parcel_still_out';
+
+/** One return as PostEx, the platform and Shopify each record it, and what disagrees. */
+export interface ReturnsReconciliationRow {
+  orderId: string | null;
+  orderNumber: string | null;
+  store: StoreKey | null;
+  placedAt: string | null;
+  beforeImport: boolean;
+  shipmentId: string | null;
+  trackingNumber: string | null;
+  stage: ParcelRow['stage'] | null;
+  returnedAt: string | null;
+  checkIn: 'restocked' | 'damaged' | 'mixed' | null;
+  checkedInAt: string | null;
+  restock: { outcome: ShopifySyncState['outcome']; message: string; ahead: number; notFound: boolean } | null;
+  shopify: {
+    cancelled: boolean;
+    financialStatus: string | null;
+    fulfillmentStatus: string | null;
+    returnStatus: string | null;
+    refundedPaisa: string;
+    unitsRestocked: number;
+    unitsNotRestocked: number;
+    unitsReturned: number;
+    returns: Array<{ name: string | null; status: string }>;
+  } | null;
+  issues: Array<{ kind: ReturnIssueKind; severity: 'info' | 'warning' | 'error'; text: string }>;
+}
+
+export interface ReturnsReconciliation {
+  rows: ReturnsReconciliationRow[];
+  counts: Record<string, number>;
 }
 
 export interface CheckInResponse {
   shopify: (ShopifySyncState & { action: string; error: string | null; at: string }) | null;
+}
+
+export interface CheckInLine {
+  variantId: string;
+  restocked: number;
+  damaged: number;
 }
 
 /** What Shopify has granted a store's app: writing tags and cancels needs write_orders, restocking write_inventory. */

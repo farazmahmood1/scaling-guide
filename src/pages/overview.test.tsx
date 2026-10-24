@@ -20,9 +20,11 @@ describe('the dashboard\'s tiles', () => {
   const html = page();
   const tiles = html.split('data-testid="stat-tile"').slice(1);
 
-  it('has the seven headline figures', () => {
-    expect(tiles).toHaveLength(7);
-    for (const label of ['Sales', 'Delivered revenue', 'Net profit', 'Return rate', 'Delivery success', 'Cash with PostEx', 'Profit per parcel']) expect(html).toContain(label);
+  it('has the eight headline figures, each saying in a line what it is', () => {
+    expect(tiles).toHaveLength(8);
+    for (const label of ['Sales', 'Cancelled orders', 'Delivered revenue', 'Net profit', 'Returns', 'Delivery success', 'Cash with PostEx', 'Profit per parcel']) expect(html).toContain(label);
+    expect(html).toContain('Value of orders placed. Not money collected yet.');
+    expect(html).toContain('Revenue from parcels PostEx delivered (net sales).');
   });
 
   it('states the period on every tile, and links every tile to the report behind it', () => {
@@ -41,7 +43,7 @@ describe('the dashboard\'s tiles', () => {
   it('opens each tile\'s report on the period chosen above, leaving the brand to the sidebar', () => {
     const chosen = page('/?range=year');
     expect(chosen).toMatch(/href="\/reports\?tab=general-ledger&amp;account=4000&amp;from=\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d"/);
-    expect(chosen).toMatch(/href="\/parcels\?stage=returned&amp;from=\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d"/);
+    expect(chosen).toMatch(/href="\/parcels\?stage=returning%2Creturned&amp;from=\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d"/);
     expect(chosen).not.toContain('store=');
     expect(page('/?range=all')).toContain('href="/reports?all=1"');
   });
@@ -74,7 +76,7 @@ describe('the dashboard\'s tiles', () => {
     expect(picked).toMatch(/<input[^>]*aria-label="From"[^>]*value="2026-08-01"/);
     expect(picked).toMatch(/<input[^>]*aria-label="To"[^>]*value="2026-08-15"/);
     expect(picked).toContain('1 Aug – 15 Aug 2026');
-    expect(picked).toContain('href="/parcels?stage=returned&amp;from=2026-08-01&amp;to=2026-08-15"');
+    expect(picked).toContain('href="/parcels?stage=returning%2Creturned&amp;from=2026-08-01&amp;to=2026-08-15"');
   });
 
   it('opens on this month, and on any other named period the address asks for', () => {
@@ -82,7 +84,7 @@ describe('the dashboard\'s tiles', () => {
     expect(page('/?range=30d')).toContain('aria-label="Period: Last 30 days"');
     expect(page('/?range=year')).toContain('aria-label="Period: This year"');
     // This month starts on the 1st of the current month in Karachi.
-    expect(page('/')).toMatch(/href="\/parcels\?stage=returned&amp;from=\d{4}-\d\d-01&amp;to=/);
+    expect(page('/')).toMatch(/href="\/parcels\?stage=returning%2Creturned&amp;from=\d{4}-\d\d-01&amp;to=/);
   });
 
   it('shows no date fields and no Reset until Custom is chosen; a backwards period is not one', () => {

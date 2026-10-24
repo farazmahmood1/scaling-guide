@@ -11,6 +11,7 @@ import { useApi } from '@/hooks/use-api';
 import type { DamagedRegister as Register, DamagedRow } from '@/lib/api';
 import { formatKarachiFull, formatKarachiTime, formatPaisa } from '@/lib/format';
 import { storeLabel } from '@/lib/parcels';
+import { failureAbbr } from '@/lib/postex';
 import { cn } from '@/lib/utils';
 
 const REASON_TEXT: Record<string, string> = {
@@ -18,6 +19,8 @@ const REASON_TEXT: Record<string, string> = {
   CNA: 'Customer not available',
   ICA: 'Incomplete address',
   OPN: 'Customer wanted to open it',
+  HCR: 'Customer asked to hold delivery',
+  PNA: 'Customer had no payment ready',
 };
 
 /** One dated step on the parcel's way back, or a dash when it never happened. */
@@ -101,7 +104,7 @@ function Details({ row }: { row: DamagedRow }) {
         <ol className="space-y-3 border-l border-dashed pl-0">
           <Step label="Sent with PostEx" at={row.bookedAt} />
           <Step label="Not delivered" at={row.refusedAt}>
-            {row.failureReason && <p className="text-xs">{REASON_TEXT[row.failureReason] ?? row.failureReason}</p>}
+            {row.failureReason && <p className="text-xs">{REASON_TEXT[failureAbbr(row.failureReason) ?? ''] ?? row.failureReason}</p>}
           </Step>
           <Step label="Back at the warehouse (PostEx)" at={row.returnedAt} />
           <Step label={`Found damaged by ${row.damagedBy}`} at={row.damagedAt}>

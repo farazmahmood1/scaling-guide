@@ -13,7 +13,7 @@ import type { ParcelRow } from '@/lib/api';
 import { formatKarachiTime, formatPaisa } from '@/lib/format';
 import type { QuerySpec } from '@/lib/list-query';
 import { codCsv, orderLabel, stageText, storeLabel } from '@/lib/parcels';
-import { FAILURE_REASONS, FLAG_LABELS, PARCEL_FLAGS, STAGES, STAGE_LABELS, stageTone } from '@/lib/postex';
+import { FLAG_LABELS, PARCEL_FLAGS, STAGES, STAGE_LABELS, describeFailureReason, stageTone } from '@/lib/postex';
 
 const COLUMN_KEYS = ['tracking', 'order', 'store', 'stage', 'city', 'cod', 'days', 'bookedAt', 'statusUpdatedAt', 'attempts', 'flags'];
 
@@ -49,7 +49,7 @@ const COLUMNS: Column<ParcelRow>[] = [
     cell: (r) => (
       <span className="flex items-center gap-2">
         <Badge variant={stageTone(r.stage)}>{stageText(r.stage)}</Badge>
-        {r.stage === 'attempted' && r.lastFailureReason && <span className="text-xs text-muted-foreground">{FAILURE_REASONS[r.lastFailureReason] ?? r.lastFailureReason}</span>}
+        {r.stage === 'attempted' && r.lastFailureReason && <span className="text-xs text-muted-foreground">{describeFailureReason(r.lastFailureReason)}</span>}
       </span>
     ),
     csv: (r) => stageText(r.stage),

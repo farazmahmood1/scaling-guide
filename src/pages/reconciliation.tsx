@@ -3,6 +3,8 @@ import { CircleCheck, RefreshCw } from 'lucide-react';
 
 import { type Closed } from '@/components/review-item';
 import { useAuth } from '@/auth/auth-context';
+import { useBrand } from '@/brand/brand-context';
+import { ReturnsCheck } from '@/components/returns-check';
 import { ReviewGroup } from '@/components/review-group';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -105,6 +107,7 @@ function MatchingPanel({ summary, onSaved }: { summary?: ReconciliationSummary; 
  */
 export function ReconciliationPage() {
   const { can } = useAuth();
+  const { brand } = useBrand();
   // A role that may read the queue but not work it (the accountant) is not offered the buttons.
   const canWork = can('reconciliation.work');
   const [status, setStatus] = useState<ItemStatus>('open');
@@ -193,6 +196,10 @@ export function ReconciliationPage() {
         </div>
 
         <MatchingPanel summary={summary.data} onSaved={summary.reload} />
+      </div>
+
+      <div className="mt-6">
+        <ReturnsCheck store={brand} canWork={canWork} />
       </div>
     </>
   );

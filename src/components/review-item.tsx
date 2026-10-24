@@ -150,7 +150,7 @@ function LinkPanel({ item, onLinked }: { item: ReviewItem; onLinked: (orderNumbe
   const wanted = search.trim().toLowerCase().replace(/^#/, '');
   const shown = useMemo(() => {
     // Digits typed may be an order number or the start of an amount in rupees (stored as paisa).
-    const digits = wanted.replaceAll(/D/g, '');
+    const digits = wanted.replaceAll(/\D/g, '');
     return (candidates ?? []).filter(
       (c) =>
         !wanted ||
@@ -160,7 +160,7 @@ function LinkPanel({ item, onLinked }: { item: ReviewItem; onLinked: (orderNumbe
     );
   }, [candidates, wanted]);
   // Typing a whole number the candidates do not hold sends it to the server, which looks in this store.
-  const typedNumber = /^#?d{1,10}$/.test(search.trim()) ? search.trim() : null;
+  const typedNumber = /^#?\d{1,10}$/.test(search.trim()) ? search.trim() : null;
   const typedLabel = typedNumber ? (typedNumber.startsWith('#') ? typedNumber : `#${typedNumber}`) : '';
 
   const choose = (choice: NonNullable<typeof selected>) => {

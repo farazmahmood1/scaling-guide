@@ -80,7 +80,7 @@ describe('the dashboard while it loads', () => {
   );
 
   it('holds every tile at its final shape: a figure and the line under it', () => {
-    for (const label of ['Delivered revenue', 'Net profit', 'Return rate', 'Delivery success', 'Cash with PostEx', 'Profit per parcel']) expect(html).toContain(`aria-label="Loading ${label}"`);
+    for (const label of ['Cancelled orders', 'Delivered revenue', 'Net profit', 'Returns', 'Delivery success', 'Cash with PostEx', 'Profit per parcel']) expect(html).toContain(`aria-label="Loading ${label}"`);
   });
 
   it('shows each chart as a chart, and the lists as lists, never one grey block', () => {

@@ -3,7 +3,8 @@
  * chosen, and goes back to waiting if the server refuses. Pure, so the rollback is tested
  * without a browser.
  */
-export type Outcome = 'restocked' | 'damaged';
+/** `mixed`: split product by product, part on the shelf and part damaged. */
+export type Outcome = 'restocked' | 'damaged' | 'mixed';
 
 export interface Pending {
   /** shipment id → the outcome shown while the request is out (or after it succeeded, until the list reloads). */

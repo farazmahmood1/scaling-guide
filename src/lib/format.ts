@@ -25,6 +25,7 @@ export const KIND_LABELS: Record<string, string> = {
   gdpr_data_request: 'Customer data request',
   confirmed_not_booked: 'Confirmed, not booked',
   cancelled_but_booked: 'Cancelled, but booked',
+  shopify_order_missing: 'Order no longer in Shopify',
 };
 
 export const kindLabel = (kind: string): string => KIND_LABELS[kind] ?? kind.replaceAll('_', ' ');
@@ -73,6 +74,8 @@ export const describeItem = (item: Pick<ReviewItem, 'kind' | 'detail'>): string 
     }
     case 'postex_unknown_status':
       return `Code ${text(d['code'])} "${text(d['message'])}" is not a code we know yet`.replace(' ""', '');
+    case 'shopify_order_missing':
+      return `${text(d['orderNumber']) || 'An order'} is kept here for its parcel and money, but Shopify no longer has it (deleted there)`;
     default:
       return Object.entries(d)
         .filter(([, v]) => typeof v === 'string' || typeof v === 'number')

@@ -13,7 +13,7 @@ import type { OrderDetailData } from '@/lib/api';
 import { CONFIRMATION_LABELS, OUTCOME_LABELS, describeItem, formatKarachiFull, formatPaisa, kindLabel } from '@/lib/format';
 import { CHANNEL_LABELS, orderStateText, orderStateTone, paymentText } from '@/lib/orders';
 import { STORE_LABELS, stageText } from '@/lib/parcels';
-import { stageTone } from '@/lib/postex';
+import { describeFailureReason, stageTone } from '@/lib/postex';
 import { cn } from '@/lib/utils';
 
 const CHARGE_LABELS: Record<string, string> = {
@@ -334,7 +334,7 @@ export function OrderView({ order, canOpenParcels, canSeePhone }: { order: Order
                           <span className={mismatch ? 'font-medium text-brand-coral' : undefined}>{formatPaisa(p.codPaisa)}</span>
                         </Fact>
                         <Fact label="Delivery attempts">{p.attempts}</Fact>
-                        {p.lastFailureReason && <Fact label="Last failure">{p.lastFailureReason}</Fact>}
+                        {p.lastFailureReason && <Fact label="Last failure">{describeFailureReason(p.lastFailureReason)}</Fact>}
                         {p.charges?.map((c) => (
                           <Fact key={c.kind} label={CHARGE_LABELS[c.kind] ?? c.kind.replaceAll('_', ' ')}>
                             {formatPaisa(c.amountPaisa)}

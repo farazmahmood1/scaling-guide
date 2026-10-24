@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, PackageCheck, PackageX, RotateCw } from 'lucide-react';
+import { Ban, ChevronDown, ChevronUp, PackageCheck, PackageX, Split } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/auth-context';
 import { useBrand } from '@/brand/brand-context';
 import { DamagedRegister } from '@/components/damaged-register';
 import { type Column, DataTable } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
+import { CheckInControls, ShopifySyncCell } from '@/components/return-actions';
 import { ReturnsAlert } from '@/components/returns-alert';
 import { ShopifyAccessNotice } from '@/components/shopify-access-notice';
 import { Badge } from '@/components/ui/badge';
@@ -17,11 +17,12 @@ import { useApi } from '@/hooks/use-api';
 import { useCheckIn } from '@/hooks/use-check-in';
 import { useListQuery } from '@/hooks/use-list-query';
 import { useParcelList } from '@/hooks/use-parcel-list';
-import { type AwaitingReturn, type CheckInResponse, type ParcelRow, type ShopifySyncState, apiPost } from '@/lib/api';
-import { type Outcome, stillWaiting, withPending } from '@/lib/check-in';
+import type { AwaitingReturn, ParcelRow } from '@/lib/api';
+import { stillWaiting, withPending } from '@/lib/check-in';
 import { formatKarachiTime, formatPaisa, fromNow } from '@/lib/format';
 import type { ListQuery, QuerySpec } from '@/lib/list-query';
 import { codCsv, orderLabel, storeLabel } from '@/lib/parcels';
+import { returnStageText } from '@/lib/returns';
 
 const SPEC: QuerySpec = {
   multi: { city: null },
@@ -30,33 +31,32 @@ const SPEC: QuerySpec = {
   defaultSort: { key: 'statusUpdatedAt', dir: 'asc' },
   pageSizes: [25, 50, 100],
   defaultPageSize: 25,
-  columnKeys: ['tracking', 'order', 'store', 'city', 'cod', 'statusUpdatedAt', 'checkIn', 'shopify'],
+  columnKeys: ['tracking', 'order', 'store', 'city', 'cod', 'where', 'statusUpdatedAt', 'checkIn', 'shopify'],
   screen: 'returns',
 };
 
-type View = 'waiting' | 'done' | 'damaged' | 'all';
+/**
+ * The active queue is the first two views: parcels to check in, and checked-in parcels whose
+ * Shopify stock is not settled yet. A parcel leaves them once both are done, and stays in Checked
+ * in (and All returns) for good, with its check-in and every Shopify attempt.
+ */
+type View = 'waiting' | 'shopify' | 'done' | 'damaged' | 'all';
 const VIEWS: Array<{ value: View; label: string }> = [
-  { value: 'waiting', label: 'Waiting' },
+  { value: 'waiting', label: 'To check in' },
+  { value: 'shopify', label: 'Needs Shopify' },
   { value: 'done', label: 'Checked in' },
   { value: 'damaged', label: 'Damaged' },
   { value: 'all', label: 'All returns' },
 ];
 const isView = (v: string | null): v is View => VIEWS.some((x) => x.value === v);
 
-/** The register is the parcels API narrowed to parcels back at the warehouse, by the chosen view. */
+const VIEW_FLAG: Partial<Record<View, string>> = { waiting: 'not_checked_in', shopify: 'needs_shopify', done: 'checked_in' };
+
+/** The register is the parcels API narrowed to parcels coming back or back, by the chosen view. */
 const registerQuery = (query: ListQuery, view: View): ListQuery => ({
   ...query,
-  multi: { ...query.multi, stage: ['returned'], ...(view === 'all' || view === 'damaged' ? {} : { flag: [view === 'waiting' ? 'not_checked_in' : 'checked_in'] }) },
+  multi: { ...query.multi, stage: ['returning', 'returned'], ...(VIEW_FLAG[view] ? { flag: [VIEW_FLAG[view]!] } : {}) },
 });
-
-// A button inside a clickable row: neither the click nor Enter/Space may also open the row.
-const own = { onClick: (e: { stopPropagation: () => void }) => e.stopPropagation(), onKeyDown: (e: { stopPropagation: () => void }) => e.stopPropagation() };
-
-const SYNC_LOOK: Record<ShopifySyncState['outcome'], { label: string; variant: 'secondary' | 'outline' | 'destructive' }> = {
-  done: { label: 'Updated', variant: 'secondary' },
-  skipped: { label: 'Nothing to do', variant: 'outline' },
-  failed: { label: 'Not updated', variant: 'destructive' },
-};
 
 /** What the two buttons do, on the platform and in Shopify, in plain words. Open until it is closed. */
 function HowItWorks() {
@@ -65,8 +65,8 @@ function HowItWorks() {
     <Card className="mb-6">
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 py-4">
         <div>
-          <p className="font-medium">What Restock and Damaged do</p>
-          <p className="text-sm text-muted-foreground">Check a parcel in when it is physically in your hands, after opening it.</p>
+          <p className="font-medium">What Restock, Damaged, Split and Cancel in Shopify do</p>
+          <p className="text-sm text-muted-foreground">Check a parcel in when it is physically in your hands, after opening it. You can check it in as soon as PostEx starts the return.</p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setOpen(!open)} aria-expanded={open}>
           {open ? 'Hide' : 'Show'}
@@ -74,7 +74,7 @@ function HowItWorks() {
         </Button>
       </CardHeader>
       {open && (
-        <CardContent className="grid gap-4 pt-0 text-sm md:grid-cols-2">
+        <CardContent className="grid gap-4 pt-0 text-sm md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border border-l-4 border-l-primary p-3">
             <p className="mb-1 flex items-center gap-1.5 font-medium">
               <PackageCheck className="size-4" /> Restock: the products are fine
@@ -84,7 +84,10 @@ function HowItWorks() {
                 <span className="text-foreground">Here:</span> the units move from "Coming back" to the shelf (Inventory, Warehouse) and can be sold again.
               </li>
               <li>
-                <span className="text-foreground">In Shopify:</span> if the order is still open there, it is cancelled with its items restocked (no refund, no email to the customer). If it was marked fulfilled, the units are added back to available.
+                <span className="text-foreground">In Shopify:</span> the units are added back to available only where Shopify counts them as gone (the order was fulfilled, or cancelled without restocking). If Shopify already restocked them, nothing is added, so stock is never counted twice. <strong>The order is never cancelled.</strong>
+              </li>
+              <li>
+                <span className="text-foreground">Order still open in Shopify:</span> Shopify still holds the units for it, so nothing is added and the parcel waits under Needs Shopify until the order is cancelled (see the last box).
               </li>
               <li>
                 <span className="text-foreground">Money:</span> no sale was ever counted for a refused parcel, so revenue does not change. Only PostEx's return charge stays as a cost.
@@ -100,11 +103,30 @@ function HowItWorks() {
                 <span className="text-foreground">Here:</span> the units move to "Damaged", never back to the shelf, and the parcel is listed under the Damaged tab with what was inside, who it was sent to and when.
               </li>
               <li>
-                <span className="text-foreground">In Shopify:</span> an open order is cancelled and the units are taken off available as damaged. A fulfilled order needs nothing: the units already left Shopify's stock.
+                <span className="text-foreground">In Shopify:</span> nothing is added back. A fulfilled order needs nothing: the units already left Shopify's stock. An order still open there waits under Needs Shopify.
               </li>
               <li>
                 <span className="text-foreground">Money:</span> the products' cost is written off as an expense (once their cost price is entered).
               </li>
+            </ul>
+          </div>
+          <div className="rounded-lg border border-l-4 p-3">
+            <p className="mb-1 flex items-center gap-1.5 font-medium">
+              <Split className="size-4" /> Split: some fine, some damaged
+            </p>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>Say, per product, how many came back fine. Those go back on the shelf and to Shopify as above; the rest are damaged and written off.</li>
+              <li>Only what came back is counted: the numbers always add up to what the parcel carried.</li>
+            </ul>
+          </div>
+          <div className="rounded-lg border border-l-4 p-3">
+            <p className="mb-1 flex items-center gap-1.5 font-medium">
+              <Ban className="size-4" /> Cancel in Shopify: its own step
+            </p>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>Offered only after check-in, for an order still open in Shopify, and asks you to confirm.</li>
+              <li>Cancels with restock if the goods came back fine, without restock if damaged. No refund, no email to the customer.</li>
+              <li>Cancelling the order in Shopify yourself works too: the platform notices within a few minutes and adds nothing twice.</li>
             </ul>
           </div>
         </CardContent>
@@ -128,9 +150,8 @@ export function ReturnsPage() {
   const effective = useMemo(() => registerQuery(query, view), [query, view]);
   const list = useParcelList(effective);
   const { brand } = useBrand();
-  const awaiting = useApi<{ returns: AwaitingReturn[] }>(`/api/v1/stock/returns-awaiting${brand ? `?store=${brand}` : ''}`);
+  const awaiting = useApi<{ returns: AwaitingReturn[]; comingBack: number }>(`/api/v1/stock/returns-awaiting${brand ? `?store=${brand}` : ''}`);
   const navigate = useNavigate();
-  const [retrying, setRetrying] = useState<string | null>(null);
 
   const reloadList = list.reload;
   const reloadAwaiting = awaiting.reload;
@@ -138,24 +159,7 @@ export function ReturnsPage() {
     reloadList();
     reloadAwaiting();
   }, [reloadList, reloadAwaiting]);
-  const { pending, checkIn } = useCheckIn(onSaved);
-
-  const retry = useCallback(
-    async (row: ParcelRow) => {
-      setRetrying(row.id);
-      try {
-        const result = await apiPost<CheckInResponse>(`/api/v1/stock/returns/${row.id}/shopify-sync`, {});
-        if (result.shopify?.outcome === 'failed') toast.error(`${row.trackingNumber}: Shopify was not updated`, { description: result.shopify.error ?? result.shopify.message });
-        else toast.success(`${row.trackingNumber}: ${result.shopify?.message ?? 'Shopify updated'}`);
-        reloadList();
-      } catch (cause) {
-        toast.error(cause instanceof Error ? cause.message : 'Could not reach Shopify');
-      } finally {
-        setRetrying(null);
-      }
-    },
-    [reloadList],
-  );
+  const { pending, checkIn, retryShopify, cancelInShopify, busyShopify } = useCheckIn(onSaved);
 
   const setView = (next: View) =>
     setParams((p) => {
@@ -177,9 +181,10 @@ export function ReturnsPage() {
       { key: 'store', header: 'Store', cell: (r) => (r.store === 'nur' ? 'NUR' : r.store === 'organics' ? 'Organics' : '—'), csv: (r) => storeLabel(r.store) },
       { key: 'city', header: 'City', cell: (r) => r.city ?? '—', csv: (r) => r.city ?? '' },
       { key: 'cod', header: 'COD', sortable: true, align: 'right', cell: (r) => formatPaisa(r.codPaisa), csv: (r) => codCsv(r.codPaisa) },
+      { key: 'where', header: 'Where', cell: (r) => <Badge variant={r.stage === 'returned' ? 'secondary' : 'outline'}>{returnStageText(r.stage)}</Badge>, csv: (r) => returnStageText(r.stage) },
       {
         key: 'statusUpdatedAt',
-        header: 'Returned',
+        header: 'Last PostEx update',
         sortable: true,
         cell: (r) => (r.statusUpdatedAt ? <span title={formatKarachiTime(r.statusUpdatedAt)}>{fromNow(r.statusUpdatedAt)}</span> : '—'),
         csv: (r) => r.statusUpdatedAt ?? '',
@@ -189,23 +194,13 @@ export function ReturnsPage() {
         header: 'Check-in',
         align: 'right',
         cell: (r) => {
-          if (r.checkedIn) return <Badge variant={r.checkedIn === 'damaged' ? 'destructive' : 'secondary'}>{r.checkedIn === 'damaged' ? 'Damaged' : 'Restocked'}</Badge>;
+          if (r.checkedIn) {
+            const look = { restocked: ['Restocked', 'secondary'], damaged: ['Damaged', 'destructive'], mixed: ['Split', 'outline'] } as const;
+            return <Badge variant={look[r.checkedIn][1]}>{look[r.checkedIn][0]}</Badge>;
+          }
           // A role that may see returns but not check them in is shown the state, not the buttons.
           if (!canCheckIn) return <span className="text-sm text-muted-foreground">Waiting</span>;
-          const busy = pending.inFlight.includes(r.id);
-          const act = (outcome: Outcome) => () => void checkIn(r.id, r.trackingNumber, outcome);
-          return (
-            <span className="flex justify-end gap-2" {...own}>
-              <Button size="sm" variant="outline" disabled={busy} onClick={act('restocked')} aria-label={`Restock ${r.trackingNumber}`}>
-                <PackageCheck className="size-4" />
-                Restock
-              </Button>
-              <Button size="sm" variant="destructive" disabled={busy} onClick={act('damaged')} aria-label={`Mark ${r.trackingNumber} damaged`}>
-                <PackageX className="size-4" />
-                Damaged
-              </Button>
-            </span>
-          );
+          return <CheckInControls shipmentId={r.id} trackingNumber={r.trackingNumber} busy={pending.inFlight.includes(r.id)} onCheckIn={(outcome, lines) => checkIn(r.id, r.trackingNumber, outcome, lines)} />;
         },
         csv: (r) => r.checkedIn ?? 'waiting',
       },
@@ -214,31 +209,31 @@ export function ReturnsPage() {
         header: 'Shopify',
         cell: (r) => {
           if (!r.checkedIn) return <span className="text-xs text-muted-foreground">after check-in</span>;
-          if (!r.shopifySync) return <span className="text-xs text-muted-foreground">—</span>;
-          const look = SYNC_LOOK[r.shopifySync.outcome];
           return (
-            <span className="flex items-center gap-2" title={r.shopifySync.message} {...own}>
-              <Badge variant={look.variant}>{look.label}</Badge>
-              {r.shopifySync.outcome === 'failed' && canCheckIn && (
-                <Button size="sm" variant="ghost" className="h-7 px-2" disabled={retrying === r.id} onClick={() => void retry(r)} aria-label={`Try Shopify again for ${r.trackingNumber}`}>
-                  <RotateCw className={retrying === r.id ? 'size-3.5 animate-spin' : 'size-3.5'} />
-                  Retry
-                </Button>
-              )}
-            </span>
+            <ShopifySyncCell
+              sync={r.shopifySync}
+              trackingNumber={r.trackingNumber}
+              canAct={canCheckIn && r.orderId !== null}
+              busy={busyShopify === r.id}
+              onRetry={() => void retryShopify(r.id, r.trackingNumber)}
+              onCancel={() => void cancelInShopify(r.id, r.trackingNumber)}
+            />
           );
         },
         csv: (r) => (r.shopifySync ? `${r.shopifySync.outcome}: ${r.shopifySync.message}` : ''),
       },
     ],
-    [pending.inFlight, checkIn, canCheckIn, retry, retrying],
+    [pending.inFlight, checkIn, canCheckIn, retryShopify, cancelInShopify, busyShopify],
   );
 
   return (
     <>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Returns</h1>
-        <p className="text-sm text-muted-foreground">Parcels PostEx has brought back. Check each one in as restocked or damaged when it reaches the warehouse; Shopify is updated at the same time.</p>
+        <p className="text-sm text-muted-foreground">
+          Parcels PostEx is bringing back or has brought back. Check each one in when it is in your hands: its stock moves here at once, and Shopify's stock is brought in line. Restocking never cancels the Shopify order.
+          {awaiting.data && awaiting.data.comingBack > 0 ? ` ${awaiting.data.comingBack} more ${awaiting.data.comingBack === 1 ? 'is' : 'are'} on the way back.` : ''}
+        </p>
       </div>
       <ReturnsAlert waiting={awaiting.data ? waiting : undefined} onOpen={false} />
       {canCheckIn && <ShopifyAccessNotice needs={['writeOrders', 'writeInventory']} purpose="update stock and orders when a return is checked in" />}
@@ -259,6 +254,11 @@ export function ReturnsPage() {
               </button>
             ))}
           </div>
+          {view === 'shopify' && (
+            <p className="text-sm text-muted-foreground">
+              Checked in, but Shopify's stock is not settled: Shopify refused (Retry), or the order is still open there and keeps the units committed to it (Cancel in Shopify when you are ready, or cancel it in Shopify with Restock ticked). These are re-checked automatically every few minutes.
+            </p>
+          )}
           {view !== 'damaged' && <FilterBar query={query} onChange={setQuery} dateLabel="Booked" searchPlaceholder="Scan or type a tracking number" />}
         </CardHeader>
         <CardContent>

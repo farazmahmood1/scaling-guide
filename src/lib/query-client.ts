@@ -12,8 +12,9 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 60_000,
       gcTime: 10 * 60_000,
-      // Coming back to the tab would refetch everything on screen; the minute's staleness is fine.
-      refetchOnWindowFocus: false,
+      // Coming back to the tab re-reads what is on screen once it is over a minute old, so a figure
+      // left open for an hour is not shown as current. The live sync refreshes it while the tab is open.
+      refetchOnWindowFocus: true,
       // The server refusing is an answer, not a blip: only a dropped connection is tried once more.
       retry: (failures, error) => failures < 1 && !(error instanceof ApiError),
     },

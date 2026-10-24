@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { emptyPending, fail, start, stillWaiting, submitCheckIn, succeed, withPending } from '@/lib/check-in';
-import { STATUS_LABELS, describeStatus, parcelsPath } from '@/lib/postex';
+import { STATUS_LABELS, describeFailureReason, describeStatus, failureAbbr, parcelsPath } from '@/lib/postex';
 
 describe('PostEx statuses in words', () => {
   it('labels every verified code', () => {
@@ -13,10 +13,34 @@ describe('PostEx statuses in words', () => {
     expect(describeStatus(null).label).toBe('Booked, not yet moving');
   });
 
+  it('labels the routine movement and return-leg codes, so none is shown as unknown', () => {
+    for (const code of ['0001', '0036', '0031', '0003', '0033', '0035', '0038', '0004', '0039', '0037', '0032']) {
+      const text = describeStatus(code, 'Received at LHE Warehouse');
+      expect(text.known).toBe(true);
+      expect(text.label).toBe(STATUS_LABELS[code]);
+    }
+    expect(describeStatus('0004', 'Enroute for Delivery').label).toBe('Out for delivery');
+  });
+
   it('gives the reason of a failed attempt', () => {
     expect(describeStatus('0013', 'Attempt Made: RFD(REFUSED TO RECEIVE)').reason).toBe('Customer refused');
     expect(describeStatus('0013', 'Attempt Made: CNA(CUSTOMER NOT AVAILABLE)').reason).toBe('Customer not available');
     expect(describeStatus('0013', 'Attempt Made').reason).toBeNull();
+  });
+
+  it('gives the reason for a hold request and for payment not available, as PostEx words them', () => {
+    expect(describeStatus('0013', 'Attempt Made: HCR(HOLD ON CONSIGNEE REQUEST)').reason).toBe('Customer asked to hold delivery');
+    expect(describeStatus('0013', 'Attempt Made: PNA(PAYMENT NOT AVAILABLE)').reason).toBe('Customer had no payment ready');
+  });
+
+  it('puts a stored failure reason in words, whether it is the abbreviation or the whole message', () => {
+    expect(describeFailureReason('CNA')).toBe('Customer not available');
+    expect(describeFailureReason('HCR')).toBe('Customer asked to hold delivery');
+    // Stored before HCR and PNA were known: PostEx's whole message.
+    expect(describeFailureReason('Attempt Made: PNA(PAYMENT NOT AVAILABLE)')).toBe('Customer had no payment ready');
+    // A reason we have no words for shows as it is.
+    expect(describeFailureReason('Attempt Made: XYZ(SOMETHING NEW)')).toBe('Attempt Made: XYZ(SOMETHING NEW)');
+    expect(failureAbbr('Attempt Made: XYZ(SOMETHING NEW)')).toBeNull();
   });
 
   it('renders a code it does not know with PostEx\'s own words, marked unknown', () => {

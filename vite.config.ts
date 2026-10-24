@@ -17,7 +17,7 @@ export default defineConfig({
     port: 3000,
     // Calls to /api go to the backend, so the dashboard uses one origin in development.
     proxy: {
-      '/api': { target: 'http://localhost:4000', changeOrigin: true },
+      '/api': { target: 'http://localhost:5050', changeOrigin: true },
     },
   },
 });

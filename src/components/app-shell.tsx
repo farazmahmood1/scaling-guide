@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigation } from 'react-router';
 
 import { useAuth } from '@/auth/auth-context';
 import { BrandProvider, useBrand } from '@/brand/brand-context';
+import { SyncIndicator } from '@/components/sync-indicator';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { BRAND_OPTIONS, brandLabel, parseBrand } from '@/lib/brand';
@@ -155,6 +156,7 @@ function Shell() {
           </div>
           <span className="hidden text-sm font-medium lg:inline">{current ? current.label : titleForPath(pathname)}</span>
           <div className="ml-auto flex min-w-0 items-center gap-3">
+            <SyncIndicator />
             <NavLink to="/account" className="hidden min-w-0 truncate rounded px-1 text-xs opacity-70 hover:underline hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:inline" aria-label={`My account: ${user?.email ?? ''}, ${roleLabel ?? ''}`}>
               {user?.email}
               {roleLabel ? ` · ${roleLabel}` : ''}
