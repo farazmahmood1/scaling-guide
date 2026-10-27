@@ -25,15 +25,15 @@ describe('the default layout', () => {
   });
 
   it('puts three tiles across when wide, two on a tablet and one on a phone', () => {
-    const tilesAcross = (bp: (typeof BREAKPOINT_KEYS)[number]) => defaultLayouts()[bp].filter((p) => ['sales', 'cancelled', 'revenue'].includes(p.i)).filter((p) => p.y === 0).length;
+    const tilesAcross = (bp: (typeof BREAKPOINT_KEYS)[number]) => defaultLayouts()[bp].filter((p) => ['sold', 'withPostex', 'received'].includes(p.i)).filter((p) => p.y === 0).length;
     expect(tilesAcross('lg')).toBe(3);
     expect(tilesAcross('md')).toBe(2);
     expect(tilesAcross('xs')).toBe(1);
   });
 
   it('lays out only the cards given', () => {
-    const layouts = defaultLayouts(['revenue', 'queue']);
-    for (const bp of BREAKPOINT_KEYS) expect(layouts[bp].map((p) => p.i)).toEqual(['revenue', 'queue']);
+    const layouts = defaultLayouts(['sold', 'queue']);
+    for (const bp of BREAKPOINT_KEYS) expect(layouts[bp].map((p) => p.i)).toEqual(['sold', 'queue']);
   });
 });
 
@@ -54,13 +54,13 @@ describe('the cards a role may see', () => {
 });
 
 describe('a saved layout', () => {
-  const ids = ['revenue', 'profit', 'trend'] as const;
+  const ids = ['sold', 'received', 'trend'] as const;
   const place = (i: string, x: number, y: number, w: number, h: number) => ({ i, x, y, w, h });
 
   it('is used where it checks out, and the default fills in what it lacks', () => {
     const merged = mergeLayouts({ lg: [place('trend', 4, 2, 8, 12)] }, ids);
     expect(merged.lg.find((p) => p.i === 'trend')).toMatchObject({ x: 4, y: 2, w: 8, h: 12 });
-    expect(merged.lg.map((p) => p.i)).toEqual(['revenue', 'profit', 'trend']);
+    expect(merged.lg.map((p) => p.i)).toEqual(['sold', 'received', 'trend']);
     expect(merged.md).toEqual(defaultLayouts(ids).md);
   });
 
@@ -69,18 +69,18 @@ describe('a saved layout', () => {
   });
 
   it('drops a card that no longer exists, a place that is not whole numbers, and a card placed twice', () => {
-    const merged = mergeLayouts({ lg: [place('gone', 0, 0, 4, 4), place('revenue', 0.5, 0, 4, 4), place('profit', 0, 0, 4, 4), place('profit', 8, 0, 4, 4)] }, ids);
-    expect(merged.lg.map((p) => p.i)).toEqual(['revenue', 'profit', 'trend']);
+    const merged = mergeLayouts({ lg: [place('gone', 0, 0, 4, 4), place('sold', 0.5, 0, 4, 4), place('received', 0, 0, 4, 4), place('received', 8, 0, 4, 4)] }, ids);
+    expect(merged.lg.map((p) => p.i)).toEqual(['sold', 'received', 'trend']);
     expect(merged.lg[0]).toEqual(defaultLayouts(ids).lg[0]);
     // The first valid place for a card wins.
     expect(merged.lg[1]).toMatchObject({ x: 0, w: 4 });
   });
 
   it('never lets a card past the last column, or be wider than the screen', () => {
-    const merged = mergeLayouts({ sm: [place('revenue', 3, 0, 2, 4), place('profit', 0, 0, 9, 4)] }, ids);
-    const revenue = merged.sm.find((p) => p.i === 'revenue')!;
-    expect(revenue.x + revenue.w).toBeLessThanOrEqual(COLS.sm);
-    expect(merged.sm.find((p) => p.i === 'profit')).toEqual(defaultLayouts(ids).sm[1]);
+    const merged = mergeLayouts({ sm: [place('sold', 3, 0, 2, 4), place('received', 0, 0, 9, 4)] }, ids);
+    const sold = merged.sm.find((p) => p.i === 'sold')!;
+    expect(sold.x + sold.w).toBeLessThanOrEqual(COLS.sm);
+    expect(merged.sm.find((p) => p.i === 'received')).toEqual(defaultLayouts(ids).sm[1]);
   });
 
   it('keeps only where each card is, not the limits', () => {
@@ -98,7 +98,7 @@ describe('keeping the layout in the browser', () => {
 
   it('keeps one per person, and forgets it on reset', () => {
     storage();
-    writeSavedLayout('a@x.pk', defaultLayouts(['revenue']));
+    writeSavedLayout('a@x.pk', defaultLayouts(['sold']));
     expect(readSavedLayout('a@x.pk')).not.toBeNull();
     expect(readSavedLayout('b@x.pk')).toBeNull();
     writeSavedLayout('a@x.pk', null);
@@ -114,6 +114,6 @@ describe('keeping the layout in the browser', () => {
     };
     vi.stubGlobal('localStorage', { getItem: refuse, setItem: refuse, removeItem: refuse });
     expect(readSavedLayout('a@x.pk')).toBeNull();
-    expect(() => writeSavedLayout('a@x.pk', defaultLayouts(['revenue']))).not.toThrow();
+    expect(() => writeSavedLayout('a@x.pk', defaultLayouts(['sold']))).not.toThrow();
   });
 });

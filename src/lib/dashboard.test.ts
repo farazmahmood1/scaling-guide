@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BreakdownRow, OrderFunnelData, ProductReportRow, RateFigure, ReturnRateRow } from '@/lib/api';
-import { DEFAULT_RANGE, DEFINITIONS, MIN_CITY_OUTCOMES, asOfText, compactRupees, customPeriod, funnelPoints, monthTrend, topProducts, periodText, plotRupees, rangeFor, rankCities, rateBasis, rateText, rateTrend, returnedParcelsLink, shareText, tileLinks, trendWindow } from '@/lib/dashboard';
+import { DEFAULT_RANGE, DEFINITIONS, MIN_CITY_OUTCOMES, asOfText, compactRupees, customPeriod, funnelPoints, monthTrend, paisaShare, topProducts, periodText, plotRupees, rangeFor, rankCities, rateBasis, rateText, rateTrend, returnedParcelsLink, shareText, tileLinks, trendWindow } from '@/lib/dashboard';
 
 describe('periods', () => {
   const today = '2026-09-17';
@@ -63,6 +63,12 @@ describe('figures', () => {
     expect(compactRupees('12.5')).toBe('—');
   });
 
+  it('prints one amount as a share of another, and a dash when there is nothing to share', () => {
+    expect(shareText(paisaShare('251800', '745000'))).toBe('33.8%');
+    expect(shareText(paisaShare('745000', '745000'))).toBe('100.0%');
+    expect(shareText(paisaShare('0', '0'))).toBe('—');
+  });
+
   it('places marks from paisa without ever printing the float', () => {
     expect(plotRupees('275050')).toBe(2750.5);
     expect(plotRupees('x')).toBe(0);
@@ -106,8 +112,8 @@ describe('where each figure\'s report is', () => {
   const links = tileLinks({ range: 'month' }, '2026-09-17', today);
 
   it('opens each tile on its own period, and leaves the brand to the sidebar', () => {
-    expect(links.revenue).toBe('/reports?tab=general-ledger&account=4000&from=2026-09-01&to=2026-09-17');
-    expect(links.profit).toBe('/reports?from=2026-09-01&to=2026-09-17');
+    expect(links.sold).toBe('/reports?tab=general-ledger&account=1100&from=2026-09-01&to=2026-09-17');
+    expect(links.received).toBe('/reports?tab=general-ledger&account=1100&from=2026-09-01&to=2026-09-17');
     // Both stages of a return: on the way back, and back.
     expect(links.returnRate).toBe('/parcels?stage=returning%2Creturned&from=2026-09-01&to=2026-09-17');
     expect(links.cancelled).toBe('/orders?state=cancelled&from=2026-09-01&to=2026-09-17');
@@ -116,18 +122,18 @@ describe('where each figure\'s report is', () => {
   });
 
   it('opens the cash ledger from the start up to the day the figure is as of', () => {
-    expect(links.cash).toBe('/reports?tab=general-ledger&account=1100&from=2000-01-01&to=2026-09-17');
+    expect(links.withPostex).toBe('/reports?tab=general-ledger&account=1100&from=2000-01-01&to=2026-09-17');
   });
 
   it('opens each tile on a hand-picked period, whatever the named range says', () => {
     const picked = tileLinks({ range: 'all', custom: { from: '2026-08-01', to: '2026-08-15' } }, '2026-08-15', today);
-    expect(picked.profit).toBe('/reports?from=2026-08-01&to=2026-08-15');
+    expect(picked.sold).toBe('/reports?tab=general-ledger&account=1100&from=2026-08-01&to=2026-08-15');
     expect(picked.returnRate).toBe('/parcels?stage=returning%2Creturned&from=2026-08-01&to=2026-08-15');
   });
 
   it('marks all time for the Reports screen, and leaves the flag off the parcels list', () => {
     const all = tileLinks({ range: 'all' }, '2026-09-17', today);
-    expect(all.profit).toBe('/reports?all=1');
+    expect(all.sold).toBe('/reports?tab=general-ledger&account=1100&all=1');
     expect(all.returnRate).toBe('/parcels?stage=returning%2Creturned');
     expect(returnedParcelsLink({ from: '2026-09-01', to: '2026-09-17' }, 'Lahore')).toBe('/parcels?stage=returning%2Creturned&city=Lahore&from=2026-09-01&to=2026-09-17');
   });
@@ -135,7 +141,7 @@ describe('where each figure\'s report is', () => {
 
 describe('definitions', () => {
   it('has a definition for every figure, none of them empty', () => {
-    for (const key of ['revenue', 'netProfit', 'returnRate', 'deliverySuccess', 'firstAttempt', 'cash', 'ageing', 'profitPerParcel', 'trend', 'returnTrend', 'cityReturns', 'funnel', 'topProducts', 'queue', 'recentOrders', 'alerts', 'returnsAwaiting'] as const) {
+    for (const key of ['sold', 'withPostex', 'received', 'returnRate', 'deliverySuccess', 'firstAttempt', 'ageing', 'trend', 'returnTrend', 'cityReturns', 'funnel', 'topProducts', 'queue', 'recentOrders', 'alerts', 'returnsAwaiting'] as const) {
       expect(DEFINITIONS[key].length, key).toBeGreaterThan(40);
     }
   });

@@ -38,7 +38,7 @@ function AlertsCard() {
           <AlertTriangle className="size-4 text-brand-coral" />
           {data.alerts.length === 1 ? '1 order needs attention' : `${data.alerts.length} orders need attention`}
         </CardTitle>
-        <CardDescription>Raised hourly. Each clears by itself once the order is booked, or the parcel is cancelled in PostEx.</CardDescription>
+        <CardDescription>Checked with every sync. Each clears by itself once the order is booked (a PostEx parcel, or the PostEx tag in Shopify), or the parcel is cancelled in PostEx.</CardDescription>
       </CardHeader>
       <CardContent>
         <ul className="space-y-2 text-sm">

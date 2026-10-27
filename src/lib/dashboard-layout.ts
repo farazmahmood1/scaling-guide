@@ -8,14 +8,12 @@ import type { Permission } from '@/lib/api';
  */
 
 export const CARD_IDS = [
-  'sales',
+  'sold',
+  'withPostex',
+  'received',
   'cancelled',
-  'revenue',
-  'profit',
   'returnRate',
   'deliverySuccess',
-  'cash',
-  'profitPerParcel',
   'trend',
   'ageing',
   'returnTrend',
@@ -67,14 +65,12 @@ type Size = Record<BreakpointKey, readonly [number, number]>;
 
 const tile: Size = { lg: [4, 9], md: [4, 10], sm: [2, 12], xs: [1, 10] };
 const SIZES: Record<CardId, Size> = {
-  sales: tile,
+  sold: tile,
+  withPostex: tile,
+  received: tile,
   cancelled: tile,
-  revenue: tile,
-  profit: tile,
   returnRate: tile,
   deliverySuccess: tile,
-  cash: tile,
-  profitPerParcel: tile,
   trend: { lg: [8, 16], md: [8, 16], sm: [4, 16], xs: [1, 16] },
   ageing: { lg: [4, 16], md: [4, 16], sm: [4, 16], xs: [1, 16] },
   returnTrend: { lg: [4, 18], md: [4, 18], sm: [4, 16], xs: [1, 16] },

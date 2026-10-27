@@ -179,6 +179,9 @@ export const funnelPoints = (funnel: OrderFunnelData): FunnelPoint[] =>
 /** A share as printed beside a count (`85.2%`); a dash when there is nothing to divide. */
 export const shareText = (share: number | null): string => (share === null ? '—' : `${(share * 100).toFixed(1)}%`);
 
+/** One paisa amount as a share of another, for `shareText`: divided as BigInts, so no amount passes through a float. Null when the whole is zero. */
+export const paisaShare = (part: string, whole: string): number | null => (BigInt(whole) === 0n ? null : Number((BigInt(part) * 10_000n) / BigInt(whole)) / 10_000);
+
 export interface ProductSales {
   key: string;
   title: string;
@@ -257,16 +260,15 @@ export const tileLinks = (scope: Scope, asOf: string, today: string = todayKarac
   const report = (extra: Record<string, string> = {}) => `/reports?${carry(period, extra, { openEnded: 'all' })}`;
   const parcels = (stage: string) => `/parcels?${carry(period, { stage })}`;
   return {
-    sales: `/orders?${carry(period)}`,
+    // The COD receivable over the period: the deliveries are its debits, PostEx's charges and payouts its credits.
+    sold: report({ tab: 'general-ledger', account: '1100' }),
+    received: report({ tab: 'general-ledger', account: '1100' }),
+    // The same ledger from the start, so its closing balance is everything PostEx holds.
+    withPostex: `/reports?${carry({ from: '2000-01-01', to: asOf }, { tab: 'general-ledger', account: '1100' })}`,
     cancelled: `/orders?${carry(period, { state: 'cancelled' })}`,
-    revenue: report({ tab: 'general-ledger', account: '4000' }),
-    profit: report(),
     // Both stages of a return: on the way back, and back with us.
     returnRate: parcels('returning,returned'),
     deliverySuccess: parcels('delivered'),
-    // The COD receivable's ledger from the start, so its closing balance is the figure on the tile.
-    cash: `/reports?${carry({ from: '2000-01-01', to: asOf }, { tab: 'general-ledger', account: '1100' })}`,
-    profitPerParcel: report(),
   };
 };
 
@@ -276,14 +278,12 @@ export const returnedParcelsLink = (period: Period, city: string): string => `/p
 
 /** Each tile's figure in a few words, always on show: what it is, and what it is not. The full definition is in DEFINITIONS. */
 export const SUMMARIES = {
-  sales: 'Value of orders placed. Not money collected yet.',
+  sold: 'Cash on delivery for the parcels PostEx delivered.',
+  withPostex: 'Collected by PostEx, not paid to you yet.',
+  received: 'Already paid to you by PostEx.',
   cancelled: 'Orders cancelled before a parcel left.',
-  revenue: 'Revenue from parcels PostEx delivered (net sales).',
-  netProfit: 'Revenue less every cost, from the books.',
   returns: 'Parcels refused and coming back, or back. Count · return rate.',
   deliverySuccess: 'Share of finished parcels that were delivered.',
-  cash: 'COD PostEx has collected and not paid you yet.',
-  profitPerParcel: 'Average profit of each parcel, after its costs.',
 } as const;
 
 /**
@@ -292,20 +292,18 @@ export const SUMMARIES = {
  * and two screens never define it differently.
  */
 export const DEFINITIONS = {
-  sales:
-    'What customers ordered on Shopify in the period, by the day each order was placed: order totals after discounts, with shipping and tax. Left out: PR packages, and orders cancelled before anything shipped (they are under Cancelled orders). An order whose parcel was refused still counts here even if it was cancelled in Shopify later; it shows under Returns. Nothing here is money yet: an order only becomes delivered revenue once PostEx delivers it.',
+  sold:
+    "The cash on delivery (COD) for the parcels PostEx delivered in the period, counted on the day each was delivered. It splits three ways: what PostEx still holds (With PostEx), what it has paid to you (Received), and what it kept as its charges, with their tax. Those three always add back up to this figure. A parcel returned after delivery drops out; PR packages and partners' sales are not counted.",
+  withPostex:
+    'Of the COD for the parcels delivered in the period, what PostEx has collected and not paid to you yet, after its charges, as of the last day of the period. The line under the figure is everything PostEx holds for you, older deliveries included; the With PostEx by age chart breaks that down.',
+  received: 'Of the COD for the parcels delivered in the period, what PostEx has paid out to you by the last day of the period, from its payment receipts (CPRs).',
   cancelled:
     'Orders placed in the period and cancelled before a parcel left: cancelled in Shopify or at the confirmation desk, or cancelled in PostEx before pickup. A parcel that was refused and came back is not a cancellation; it is a return.',
-  revenue:
-    "Sales revenue posted for parcels PostEx delivered in the period, plus partners' consignment sales, less any that came back after delivery: the business's revenue (net sales). It is not cash yet: PostEx pays the COD out later (Cash with PostEx). A parcel that is placed, confirmed, booked or still in transit adds nothing. PR packages never count.",
-  netProfit: 'Income less expenses over the period, read from the books: delivered revenue, less the cost of the goods, PostEx charges, marketing, write-offs and other expenses.',
   returnRate:
     'Parcels whose delivery failed and that PostEx is bringing back or has brought back, among parcels booked in the period, PR packages excluded. A parcel counts from the moment PostEx starts its return, whatever PostEx reports after that. "Back" means PostEx has handed it to us: check it in on the Returns page. The rate is returns ÷ parcels delivered or returned; parcels still out are not counted. These are PostEx returns; a refund or return recorded only in Shopify is on the Reconciliation page.',
   deliverySuccess: 'Parcels delivered ÷ parcels with an outcome (delivered, returned or on the way back, or cancelled), among parcels booked in the period. Parcels still out are not counted; PR packages are excluded.',
   firstAttempt: 'Of the parcels delivered, the share that arrived without a failed delivery attempt on the way.',
-  cash: "Cash on delivered parcels that PostEx holds and has not paid out yet, as of the date shown: the COD collected, less PostEx's charges, less the payouts already received.",
-  ageing: 'How long that cash has been waiting, in days since each parcel was delivered, as of the date shown. Older cash is more likely to be overdue.',
-  profitPerParcel: "Net profit of the parcels in the period ÷ their number, from each parcel's own ledger lines: its revenue, less its goods, PostEx charges, marketing and write-off. A returned parcel counts with the charges it still cost.",
+  ageing: "Everything PostEx holds for you, older deliveries included, by how long it has waited since each parcel was delivered, as of the date shown: the COD collected, less PostEx's charges, less the payouts already received. Older money is more likely to be overdue.",
   trend: 'Revenue and net profit for each calendar month (Karachi), from the books, for the last six months. Revenue is posted when a parcel is delivered, so a month can show a sale and, later, its reversal.',
   returnTrend: 'The return rate, as defined above, for parcels booked in each of the last six months. A recent month fills in as its parcels reach an outcome, so the latest bar can still move.',
   cityReturns: `The return rate by delivery city, as defined above, for the period. Cities with fewer than ${MIN_CITY_OUTCOMES} finished parcels are left out, because a rate on a handful of parcels says nothing.`,

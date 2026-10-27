@@ -30,6 +30,7 @@ import {
   funnelPoints,
   isDashRange,
   monthTrend,
+  paisaShare,
   periodText,
   rangeFor,
   rankCities,
@@ -128,19 +129,53 @@ export function OverviewPage() {
   const cities = useMemo(() => rankCities(cityReturns.data?.rows ?? []), [cityReturns.data]);
   const steps = useMemo(() => (funnel.data ? funnelPoints(funnel.data) : undefined), [funnel.data]);
 
+  // A backend from before these figures sends none: the three tiles then show a dash, not a broken page.
+  const cod = d?.codSettlement;
   const cards: GridCard[] = [
     {
-      id: 'sales',
-      label: 'Sales',
+      id: 'sold',
+      label: 'Sold',
       node: (
             <StatTile
-              label="Sales"
-              value={d ? formatPaisa(d.sales.total) : undefined}
-              basis={d ? `${d.sales.orders.toLocaleString('en-PK')} orders placed${BigInt(d.sales.discounts) > 0n ? `, after ${compactRupees(d.sales.discounts)} discounts` : ''}` : undefined}
-              period={`Orders placed ${periodLabel}`}
-              definition={DEFINITIONS.sales}
-              summary={SUMMARIES.sales}
-              href={links.sales}
+              label="Sold"
+              value={cod ? formatPaisa(cod.sold) : undefined}
+              basis={cod ? `${cod.parcels.toLocaleString('en-PK')} parcels delivered · ${compactRupees(cod.charges)} kept by PostEx as charges` : undefined}
+              period={`Parcels delivered ${periodLabel}`}
+              definition={DEFINITIONS.sold}
+              summary={SUMMARIES.sold}
+              href={links.sold}
+              {...tileProps}
+            />
+      ),
+    },
+    {
+      id: 'withPostex',
+      label: 'With PostEx',
+      node: (
+            <StatTile
+              label="With PostEx"
+              value={cod ? formatPaisa(cod.withPostex) : undefined}
+              basis={d && cod ? (d.cash.awaiting === cod.withPostex ? 'Everything PostEx holds for you' : `${compactRupees(d.cash.awaiting)} in all, older deliveries included`) : undefined}
+              period={`Parcels delivered ${periodLabel}`}
+              definition={DEFINITIONS.withPostex}
+              summary={SUMMARIES.withPostex}
+              href={links.withPostex}
+              {...tileProps}
+            />
+      ),
+    },
+    {
+      id: 'received',
+      label: 'Received',
+      node: (
+            <StatTile
+              label="Received"
+              value={cod ? formatPaisa(cod.received) : undefined}
+              basis={cod ? (BigInt(cod.sold) === 0n ? 'Nothing delivered in this period' : `${shareText(paisaShare(cod.received, cod.sold))} of Sold`) : undefined}
+              period={`Parcels delivered ${periodLabel}`}
+              definition={DEFINITIONS.received}
+              summary={SUMMARIES.received}
+              href={links.received}
               {...tileProps}
             />
       ),
@@ -157,38 +192,6 @@ export function OverviewPage() {
               definition={DEFINITIONS.cancelled}
               summary={SUMMARIES.cancelled}
               href={links.cancelled}
-              {...tileProps}
-            />
-      ),
-    },
-    {
-      id: 'revenue',
-      label: 'Delivered revenue',
-      node: (
-            <StatTile
-              label="Delivered revenue"
-              value={d ? formatPaisa(d.deliveredRevenue.total) : undefined}
-              basis={d ? `${d.deliveredRevenue.parcelCount.toLocaleString('en-PK')} delivered parcels${BigInt(d.deliveredRevenue.consignment) > 0n ? `, partners ${compactRupees(d.deliveredRevenue.consignment)}` : ''}` : undefined}
-              period={periodLabel}
-              definition={DEFINITIONS.revenue}
-              summary={SUMMARIES.revenue}
-              href={links.revenue}
-              {...tileProps}
-            />
-      ),
-    },
-    {
-      id: 'profit',
-      label: 'Net profit',
-      node: (
-            <StatTile
-              label="Net profit"
-              value={d ? formatPaisa(d.profit.netProfit) : undefined}
-              basis={d ? `Income ${compactRupees(d.profit.income)} less expenses ${compactRupees(d.profit.expenses)}` : undefined}
-              period={periodLabel}
-              definition={DEFINITIONS.netProfit}
-              summary={SUMMARIES.netProfit}
-              href={links.profit}
               {...tileProps}
             />
       ),
@@ -233,38 +236,6 @@ export function OverviewPage() {
       ),
     },
     {
-      id: 'cash',
-      label: 'Cash with PostEx',
-      node: (
-            <StatTile
-              label="Cash with PostEx"
-              value={d ? formatPaisa(d.cash.awaiting) : undefined}
-              basis={d ? (BigInt(d.cash.owedToPostex) < 0n ? `${compactRupees(d.cash.owedToPostex.replace('-', ''))} more paid out or charged on parcels with no recorded sale` : 'Delivered, not yet paid out') : undefined}
-              period={asOf}
-              definition={DEFINITIONS.cash}
-              summary={SUMMARIES.cash}
-              href={links.cash}
-              {...tileProps}
-            />
-      ),
-    },
-    {
-      id: 'profitPerParcel',
-      label: 'Profit per parcel',
-      node: (
-            <StatTile
-              label="Profit per parcel"
-              value={d ? (d.profitPerParcel.average === null ? '—' : formatPaisa(d.profitPerParcel.average)) : undefined}
-              basis={d ? (d.profitPerParcel.parcels === 0 ? 'No parcels with postings in this period' : `Across ${d.profitPerParcel.parcels.toLocaleString('en-PK')} parcels, ${compactRupees(d.profitPerParcel.total)} in all`) : undefined}
-              period={periodLabel}
-              definition={DEFINITIONS.profitPerParcel}
-              summary={SUMMARIES.profitPerParcel}
-              href={links.profitPerParcel}
-              {...tileProps}
-            />
-      ),
-    },
-    {
       id: 'trend',
       label: 'Revenue and profit by month',
       node: (
@@ -285,10 +256,10 @@ export function OverviewPage() {
     },
     {
       id: 'ageing',
-      label: 'Cash with PostEx by age',
+      label: 'With PostEx by age',
       node: (
             <ChartCard
-              title="Cash with PostEx by age"
+              title="With PostEx by age"
               period={asOf}
               definition={DEFINITIONS.ageing}
               summary={d ? AGE_BUCKETS.map((b) => `${b.label}: ${formatPaisa(d.cash.buckets.find((x) => x.bucket === b.key)?.amount ?? '0')}`).join('; ') : 'Loading.'}

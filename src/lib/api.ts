@@ -91,6 +91,7 @@ export const PERMISSIONS = [
   'pr.read',
   'accounting.read',
   'reports.read',
+  'payments.read',
   'integrations.read',
   'confirmations.work',
   'orders.import',
@@ -538,7 +539,42 @@ export interface DashboardData {
     firstAttempt: RateFigure;
   };
   cash: { asOf: string; buckets: Array<{ bucket: '0-7' | '8-14' | '15-30' | '31+' | 'no_sale'; parcels: number; amount: string }>; awaiting: string; owedToPostex: string };
+  /** The COD on the parcels delivered in the period, as of `asOf`: `sold` is always `received + charges + withPostex`. */
+  codSettlement: { asOf: string; parcels: number; sold: string; received: string; charges: string; withPostex: string };
   profitPerParcel: { parcels: number; total: string; average: string | null };
+}
+
+export type PaymentWindow = '24h' | '7d' | '14d' | '30d';
+
+/** One order PostEx paid in the window, from `GET /reports/payments`. Money is integer paisa in strings. */
+export interface PaidOrderRow {
+  /** Null for a parcel with no Shopify order: its tracking number names the row. */
+  orderId: string | null;
+  orderNumber: string | null;
+  store: StoreKey | null;
+  trackingNumbers: string[];
+  paidAt: string;
+  cprNumbers: string[];
+  /** What PostEx paid out: the COD less the delivery fee and its tax. */
+  payment: string;
+  cod: string;
+  deliveryFee: string;
+  deliveryTax: string;
+  revenue: string;
+  goods: string;
+  /** Marketing and write-off, which the profit also takes off. */
+  other: string;
+  profit: string;
+}
+
+export interface PaymentsData {
+  window: PaymentWindow;
+  since: string;
+  until: string;
+  /** The newest payment up to `until`, in the window or before it; null when PostEx has paid nothing yet. */
+  lastPaidAt: string | null;
+  rows: PaidOrderRow[];
+  totals: { orders: number; parcels: number; payment: string; cod: string; deliveryFee: string; deliveryTax: string; revenue: string; goods: string; profit: string };
 }
 
 /** One product's line in the products report. Money is integer paisa in strings. */

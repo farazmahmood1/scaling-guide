@@ -8,13 +8,13 @@ const ROLE_PERMISSIONS = {
   owner: PERMISSIONS,
   agent: ['orders.read', 'confirmations.work', 'pii.phone'],
   operations: ['dashboard.read', 'orders.read', 'confirmations.work', 'parcels.read', 'returns.read', 'returns.checkin', 'reconciliation.read', 'reconciliation.work', 'stock.read', 'stock.adjust', 'purchasing.read', 'purchasing.write', 'partners.read', 'partners.write', 'pr.read', 'pr.write', 'integrations.read', 'pii.phone'],
-  accountant: ['dashboard.read', 'reconciliation.read', 'purchasing.read', 'partners.read', 'accounting.read', 'accounting.close', 'reports.read'],
+  accountant: ['dashboard.read', 'reconciliation.read', 'purchasing.read', 'partners.read', 'accounting.read', 'accounting.close', 'reports.read', 'payments.read'],
 } as const;
 
 describe('modules and permissions', () => {
-  it('has the thirteen modules, each at its own path', () => {
+  it('has the fourteen modules, each at its own path', () => {
     expect(MODULES.map((m) => m.label)).toEqual([
-      'Overview', 'Orders', 'Confirmations', 'Parcels', 'Returns', 'Reconciliation', 'Inventory', 'Purchase', 'Partners', 'PR', 'Accounting', 'Reports', 'Settings',
+      'Overview', 'Orders', 'Confirmations', 'Parcels', 'Returns', 'Reconciliation', 'Payments', 'Inventory', 'Purchase', 'Partners', 'PR', 'Accounting', 'Reports', 'Settings',
     ]);
     expect(new Set(MODULES.map((m) => m.path)).size).toBe(MODULES.length);
   });
@@ -25,9 +25,9 @@ describe('modules and permissions', () => {
   });
 
   it('shows each role only the modules its permissions open', () => {
-    expect(visibleModules(ROLE_PERMISSIONS.owner)).toHaveLength(13);
+    expect(visibleModules(ROLE_PERMISSIONS.owner)).toHaveLength(14);
     expect(visibleModules(ROLE_PERMISSIONS.agent).map((m) => m.key)).toEqual(['orders', 'confirmations']);
-    expect(visibleModules(ROLE_PERMISSIONS.accountant).map((m) => m.key)).toEqual(['overview', 'reconciliation', 'purchase', 'partners', 'accounting', 'reports']);
+    expect(visibleModules(ROLE_PERMISSIONS.accountant).map((m) => m.key)).toEqual(['overview', 'reconciliation', 'payments', 'purchase', 'partners', 'accounting', 'reports']);
     expect(visibleModules(undefined)).toEqual([]);
     expect(canUse(moduleByKey('settings'), ROLE_PERMISSIONS.operations)).toBe(false);
   });

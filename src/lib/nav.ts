@@ -13,6 +13,7 @@ export type ModuleKey =
   | 'parcels'
   | 'returns'
   | 'reconciliation'
+  | 'payments'
   | 'confirmations'
   | 'inventory'
   | 'purchase'
@@ -40,6 +41,7 @@ export const MODULES: readonly Module[] = [
   { key: 'parcels', path: '/parcels', label: 'Parcels', summary: 'PostEx parcels, their history and their charges.', group: 'Daily work', requires: 'parcels.read' },
   { key: 'returns', path: '/returns', label: 'Returns', summary: 'Parcels PostEx sent back, waiting to be checked in.', group: 'Daily work', requires: 'returns.read' },
   { key: 'reconciliation', path: '/reconciliation', label: 'Reconciliation', summary: 'Parcels, orders and cash that do not agree.', group: 'Daily work', requires: 'reconciliation.read' },
+  { key: 'payments', path: '/payments', label: 'Payments', summary: 'What PostEx paid, what it kept, and the profit on each order.', group: 'Daily work', requires: 'payments.read' },
   { key: 'inventory', path: '/inventory', label: 'Inventory', summary: 'Stock per product and location, counts and corrections.', group: 'Stock and buying', requires: 'stock.read' },
   { key: 'purchase', path: '/purchase', label: 'Purchase', summary: 'Requests, purchase orders, receipts and vendor bills.', group: 'Stock and buying', requires: 'purchasing.read' },
   { key: 'partners', path: '/partners', label: 'Partners', summary: 'Stock at retail partners and their sales sheets.', group: 'Stock and buying', requires: 'partners.read' },

@@ -49,6 +49,7 @@ export const PERMISSION_GROUPS: ReadonlyArray<{ heading: string; permissions: Re
       { key: 'pr.read', label: 'PR and influencers' },
       { key: 'accounting.read', label: 'Accounting' },
       { key: 'reports.read', label: 'Reports' },
+      { key: 'payments.read', label: 'Payments and the profit on each' },
       { key: 'integrations.read', label: 'Connection status' },
     ],
   },

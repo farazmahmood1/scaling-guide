@@ -15,6 +15,7 @@ const PAGES: Record<ModuleKey, () => Promise<ReactElement>> = {
   parcels: () => import('@/pages/parcels').then(({ ParcelsPage }) => <ParcelsPage />),
   returns: () => import('@/pages/returns').then(({ ReturnsPage }) => <ReturnsPage />),
   reconciliation: () => import('@/pages/reconciliation').then(({ ReconciliationPage }) => <ReconciliationPage />),
+  payments: () => import('@/pages/payments').then(({ PaymentsPage }) => <PaymentsPage />),
   confirmations: () => import('@/pages/confirmations').then(({ ConfirmationsPage }) => <ConfirmationsPage />),
   inventory: () => import('@/pages/inventory').then(({ InventoryPage }) => <InventoryPage />),
   purchase: () => import('@/pages/purchase').then(({ PurchasePage }) => <PurchasePage />),

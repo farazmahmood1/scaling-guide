@@ -20,11 +20,16 @@ describe('the dashboard\'s tiles', () => {
   const html = page();
   const tiles = html.split('data-testid="stat-tile"').slice(1);
 
-  it('has the eight headline figures, each saying in a line what it is', () => {
-    expect(tiles).toHaveLength(8);
-    for (const label of ['Sales', 'Cancelled orders', 'Delivered revenue', 'Net profit', 'Returns', 'Delivery success', 'Cash with PostEx', 'Profit per parcel']) expect(html).toContain(label);
-    expect(html).toContain('Value of orders placed. Not money collected yet.');
-    expect(html).toContain('Revenue from parcels PostEx delivered (net sales).');
+  it('has the six headline figures, each saying in a line what it is', () => {
+    expect(tiles).toHaveLength(6);
+    for (const label of ['Sold', 'With PostEx', 'Received', 'Cancelled orders', 'Returns', 'Delivery success']) expect(html).toContain(`aria-label="What ${label} means"`);
+    expect(html).toContain('Cash on delivery for the parcels PostEx delivered.');
+    expect(html).toContain('Collected by PostEx, not paid to you yet.');
+    expect(html).toContain('Already paid to you by PostEx.');
+  });
+
+  it('leaves out the figures that were replaced by Sold, With PostEx and Received', () => {
+    for (const label of ['Sales', 'Delivered revenue', 'Net profit', 'Cash with PostEx', 'Profit per parcel']) expect(html).not.toContain(`aria-label="What ${label} means"`);
   });
 
   it('states the period on every tile, and links every tile to the report behind it', () => {
@@ -42,14 +47,15 @@ describe('the dashboard\'s tiles', () => {
 
   it('opens each tile\'s report on the period chosen above, leaving the brand to the sidebar', () => {
     const chosen = page('/?range=year');
-    expect(chosen).toMatch(/href="\/reports\?tab=general-ledger&amp;account=4000&amp;from=\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d"/);
+    // Sold and Received open the COD ledger over the period; With PostEx opens it from the start.
+    expect(chosen).toMatch(/href="\/reports\?tab=general-ledger&amp;account=1100&amp;from=(?!2000)\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d"/);
     expect(chosen).toMatch(/href="\/parcels\?stage=returning%2Creturned&amp;from=\d{4}-01-01&amp;to=\d{4}-\d\d-\d\d"/);
     expect(chosen).not.toContain('store=');
-    expect(page('/?range=all')).toContain('href="/reports?all=1"');
+    expect(page('/?range=all')).toContain('href="/reports?tab=general-ledger&amp;account=1100&amp;all=1"');
   });
 
   it('puts a definition on each chart and on the alert summary, with the period each covers', () => {
-    for (const title of ['Revenue and profit by month', 'Cash with PostEx by age', 'Return rate by month', 'Return rate by city', 'Parcel funnel', 'Needs attention']) {
+    for (const title of ['Revenue and profit by month', 'With PostEx by age','Return rate by month', 'Return rate by city', 'Parcel funnel', 'Needs attention']) {
       expect(html).toContain(title);
       expect(html).toContain(`aria-label="What ${title} means"`);
     }
