@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FileText } from 'lucide-react';
+import { ArrowRight, FileText, Inbox } from 'lucide-react';
+import { Link } from 'react-router';
 
 import { JournalLines } from '@/components/journal-lines';
 import { Pager } from '@/components/pager';
@@ -31,10 +32,40 @@ function EntriesButton({ onClick, label }: { onClick: () => void; label: string 
   );
 }
 
-function State({ error, loading, hasData, empty, columns }: { error?: string; loading: boolean; hasData: boolean; empty: string | null; /** The table's columns, for its shape while it loads. */ columns: ReadonlyArray<string | SkeletonColumn> }) {
+function State({
+  error,
+  loading,
+  hasData,
+  empty,
+  emptyLink,
+  columns,
+}: {
+  error?: string;
+  loading: boolean;
+  hasData: boolean;
+  empty: string | null;
+  /** Where these documents are made, offered when there are none yet. */
+  emptyLink?: { to: string; label: string };
+  /** The table's columns, for its shape while it loads. */
+  columns: ReadonlyArray<string | SkeletonColumn>;
+}) {
   if (error && !hasData) return <p role="alert" className="text-sm text-brand-coral">Could not load: {error}</p>;
   if (loading && !hasData) return <TableSkeleton rows={6} columns={columns} />;
-  return empty ? <p className="py-6 text-center text-sm text-muted-foreground">{empty}</p> : null;
+  if (!empty) return null;
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-8 text-center">
+      <Inbox className="size-8 text-muted-foreground" aria-hidden />
+      <p className="max-w-sm text-sm text-muted-foreground">{empty}</p>
+      {emptyLink && (
+        <Button asChild size="sm" variant="outline">
+          <Link to={emptyLink.to}>
+            {emptyLink.label}
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /** Sales invoices to retail partners, one per brand per imported sales sheet. Paged on the server. */
@@ -43,7 +74,14 @@ export function InvoicesView({ closed, onOpen }: Props) {
   const { data, error, loading } = useApi<PagedRows<InvoiceRow>>(`/api/v1/accounting/invoices?page=${page}&size=${PAGE}`);
   return (
     <div>
-      <State columns={['Invoice', 'Partner', 'Issued', num('Total'), { as: 'button', align: 'right' }]} error={error} loading={loading} hasData={!!data} empty={data && data.rows.length === 0 ? 'No invoices yet. They are made when a partner\'s sales sheet is imported.' : null} />
+      <State
+        columns={['Invoice', 'Partner', 'Issued', num('Total'), { as: 'button', align: 'right' }]}
+        error={error}
+        loading={loading}
+        hasData={!!data}
+        empty={data && data.rows.length === 0 ? "No invoices yet. One is made each time a partner shop's sales sheet is imported." : null}
+        emptyLink={{ to: '/partners', label: 'Go to Partners' }}
+      />
       {data && data.rows.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
@@ -92,7 +130,14 @@ export function BillsView({ closed, onOpen }: Props) {
   const shown = bills.slice((page - 1) * PAGE, page * PAGE);
   return (
     <div>
-      <State columns={['Bill', 'Vendor', 'Dated', num('Total'), num('Owed'), { as: 'button', align: 'right' }]} error={error} loading={loading} hasData={!!data} empty={data && bills.length === 0 ? 'No vendor bills yet.' : null} />
+      <State
+        columns={['Bill', 'Supplier', 'Dated', num('Total'), num('Owed'), { as: 'button', align: 'right' }]}
+        error={error}
+        loading={loading}
+        hasData={!!data}
+        empty={data && bills.length === 0 ? "No supplier bills yet. They are added under Purchase, step 4, once an order's goods are received." : null}
+        emptyLink={{ to: '/purchase?step=bills', label: 'Go to Purchase' }}
+      />
       {shown.length > 0 && (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
@@ -100,7 +145,7 @@ export function BillsView({ closed, onOpen }: Props) {
             <thead className="bg-muted/40 text-left text-muted-foreground">
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">Bill</th>
-                <th scope="col" className="px-3 py-2 font-medium">Vendor</th>
+                <th scope="col" className="px-3 py-2 font-medium">Supplier</th>
                 <th scope="col" className="px-3 py-2 font-medium">Dated</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Total</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Owed</th>
@@ -146,8 +191,8 @@ export function PaymentsView({ closed, onOpen }: Props) {
   const { data, error, loading } = useApi<PagedRows<PaymentRow>>(`/api/v1/accounting/payments?page=${page}&size=${PAGE}${direction ? `&direction=${direction}` : ''}`);
   return (
     <div className="space-y-3">
-      <div role="group" aria-label="Direction" className="flex gap-1 text-sm">
-        {([['', 'All'], ['in', 'Received'], ['out', 'Paid out']] as const).map(([value, label]) => (
+      <div role="group" aria-label="Direction" className="flex flex-wrap gap-1.5">
+        {([['', 'All'], ['in', 'Money in'], ['out', 'Money out']] as const).map(([value, label]) => (
           <button
             key={value}
             type="button"
@@ -156,7 +201,7 @@ export function PaymentsView({ closed, onOpen }: Props) {
               setDirection(value);
               setPage(1);
             }}
-            className="rounded-md px-3 py-1.5 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-pressed:bg-secondary aria-pressed:font-medium"
+            className="rounded-full border px-3 py-1 text-xs hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
           >
             {label}
           </button>
@@ -185,11 +230,11 @@ export function PaymentsView({ closed, onOpen }: Props) {
                   </td>
                   <td className="px-3 py-2">
                     {p.counterparty}
-                    <div className="text-xs text-muted-foreground">{p.kind === 'postex_payout' ? 'PostEx payout' : `Vendor payment${p.method ? `, ${p.method.replace('_', ' ')}` : ''}`}</div>
+                    <div className="text-xs text-muted-foreground">{p.kind === 'postex_payout' ? 'PostEx payout' : `Supplier payment${p.method ? `, ${p.method.replace('_', ' ')}` : ''}`}</div>
                   </td>
                   <td className="px-3 py-2">{p.kind === 'postex_payout' ? `Receipt ${p.document ?? ''}` : `Bill ${p.document ?? ''}`}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    <span className={p.direction === 'in' ? 'text-primary' : ''}>
+                  <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                    <span className={p.direction === 'in' ? 'font-medium text-emerald-700 dark:text-emerald-400' : 'font-medium text-brand-coral'}>
                       {p.direction === 'in' ? '+' : '−'} {formatPaisa(p.amount)}
                     </span>
                   </td>
@@ -203,7 +248,7 @@ export function PaymentsView({ closed, onOpen }: Props) {
         </div>
       )}
       {data && <Pager page={data.page} pageSize={data.pageSize} total={data.total} loading={loading} onPage={setPage} />}
-      <p className="text-xs text-muted-foreground">Payments from retail partners are not recorded in the system yet, so they do not appear here.</p>
+      <p className="text-xs text-muted-foreground">Payments from partner shops cannot be entered in the app yet, so they do not appear here.</p>
     </div>
   );
 }

@@ -574,6 +574,8 @@ export interface PaymentsData {
   /** The newest payment up to `until`, in the window or before it; null when PostEx has paid nothing yet. */
   lastPaidAt: string | null;
   rows: PaidOrderRow[];
+  /** What PostEx still owes now, whatever the window: delivered parcels not paid out, less its charges. */
+  owed: { amount: string; parcels: number };
   totals: { orders: number; parcels: number; payment: string; cod: string; deliveryFee: string; deliveryTax: string; revenue: string; goods: string; profit: string };
 }
 
@@ -1160,6 +1162,8 @@ export interface SyncStatus {
   shopify: { lastSyncedAt: string | null; stale: boolean };
   postex: { lastSyncedAt: string | null; stale: boolean };
   lastWebhookAt: string | null;
+  /** When the last webhook's change was stored; absent from a server older than this field. */
+  lastWebhookProcessedAt?: string | null;
   jobs: SyncJobFreshness[];
 }
 

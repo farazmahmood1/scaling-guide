@@ -15,12 +15,12 @@ import { decimalNumber, parseTags, rupeesToPaisaNumber, tagsToText, wholeNumber 
  * Loads one setting, and holds the form for it. The form is only drawn once the saved value is in,
  * and is re-seeded from the server after every save, so what is on screen is always what is stored.
  */
-function useSetting<T>(path: string, key: string) {
+function useSetting<T>(path: string, key: string, savedText?: (result: Record<string, unknown>) => string) {
   const { data, error, loading, reload } = useApi<Record<string, T>>(path);
   const save = async (value: T) => {
     try {
-      await apiPut(path, value);
-      toast.success('Saved');
+      const result = await apiPut<Record<string, unknown>>(path, value);
+      toast.success(savedText ? savedText(result) : 'Saved');
       reload();
       return true;
     } catch (cause) {
@@ -226,7 +226,7 @@ function TagsEditor({ saved, onSave }: { saved: ConfirmationTagSettings; onSave:
           </Field>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">The team's own tags on Shopify orders that show the platform what was agreed on the phone. After a change, run <span className="font-mono">npm run orders:states</span> so existing orders are read again.</p>
+      <p className="text-xs text-muted-foreground">The tags your team puts on Shopify orders after the call. When you save, orders with a changed tag are re-read at once.</p>
       <SaveBar
         dirty={dirty}
         valid={valid}
@@ -244,7 +244,11 @@ function TagsEditor({ saved, onSave }: { saved: ConfirmationTagSettings; onSave:
 }
 
 export function TagsForm() {
-  const { saved, error, loading, save } = useSetting<ConfirmationTagSettings>('/api/v1/settings/confirmation-tags', 'confirmationTags');
+  const { saved, error, loading, save } = useSetting<ConfirmationTagSettings>('/api/v1/settings/confirmation-tags', 'confirmationTags', (result) => {
+    const reread = Number(result['reread'] ?? 0);
+    const changed = Number(result['changed'] ?? 0);
+    return reread === 0 ? 'Saved' : `Saved. ${reread} order${reread === 1 ? '' : 's'} re-read, ${changed} changed status.`;
+  });
   return (
     <>
       <Loading fields={5} columns={2} multiline error={error} loading={loading} hasData={!!saved} />

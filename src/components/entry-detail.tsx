@@ -6,7 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useApi } from '@/hooks/use-api';
 import type { EntryDetail as Entry } from '@/lib/api';
 import { formatKarachiFull, formatPaisa } from '@/lib/format';
-import { sourceLabel } from '@/lib/ledger';
+import { lineEffect, plainAccount, sourceLabel } from '@/lib/ledger';
+import { cn } from '@/lib/utils';
 
 /**
  * One journal entry whole: why it was posted, every line, and how it ties to a reversal. The last
@@ -50,6 +51,24 @@ export function EntryDetail({ entryId, onOpenEntry }: { entryId: string; onOpenE
         {e.reversesId && <Badge variant="secondary">Reversal</Badge>}
       </div>
       <p>{e.memo}</p>
+      <div className="rounded-md bg-muted/50 px-3 py-2">
+        <p className="mb-1 text-xs font-medium text-muted-foreground">In plain words, this entry:</p>
+        <ul className="flex flex-wrap gap-x-4 gap-y-1">
+          {e.lines.map((l) => {
+            const { up, amount } = lineEffect(l.code, l.debit, l.credit);
+            return (
+              <li key={l.id} className="whitespace-nowrap">
+                {plainAccount(l.code, l.name)}
+                {l.partner ? ` (${l.partner})` : ''}{' '}
+                <span className={cn('font-medium tabular-nums', up ? 'text-emerald-700 dark:text-emerald-400' : 'text-brand-coral')}>
+                  {up ? '+' : '−'}
+                  {formatPaisa(amount)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
       <p className="text-xs text-muted-foreground">
         Posted {formatKarachiFull(e.postedAt)} by {e.postedBy ?? 'the system'} · source {e.sourceType} {e.sourceId}
       </p>

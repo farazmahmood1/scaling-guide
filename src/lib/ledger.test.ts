@@ -40,7 +40,7 @@ describe('closed months', () => {
 describe('the close guard rails, in words', () => {
   const periods = [period(2026, 9, 'open'), period(2026, 8, 'open'), period(2026, 7, 'closed')];
   it('says a month is not yet closable, from when', () => {
-    expect(closeBlocker(periods[1]!, periods, '2026-09-04')).toBe('Can be closed from 2026-09-05');
+    expect(closeBlocker(periods[1]!, periods, '2026-09-04')).toBe('Can be closed from 5 Sep 2026');
   });
 
   it('makes months close in order', () => {

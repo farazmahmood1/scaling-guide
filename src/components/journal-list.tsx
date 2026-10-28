@@ -10,22 +10,36 @@ import { Input } from '@/components/ui/input';
 import { useApi } from '@/hooks/use-api';
 import type { JournalGroup, JournalPage } from '@/lib/api';
 import { formatPaisa } from '@/lib/format';
-import { sourceLabel } from '@/lib/ledger';
+import { type SourceFamily, sourceFamily, sourceLabel } from '@/lib/ledger';
 import { cn } from '@/lib/utils';
 
-const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
 const PAGE = 50;
 
 const JOURNAL_GROUPS: ReadonlyArray<{ value: JournalGroup; label: string; hint: string }> = [
   { value: 'sales', label: 'Sales', hint: 'A parcel delivered, or a partner sale invoiced' },
-  { value: 'cost', label: 'Cost of goods', hint: 'What the delivered products cost, damaged write-offs, PR packages' },
   { value: 'postex', label: 'PostEx charges', hint: 'Delivery and return charges, with their tax' },
-  { value: 'cash', label: 'Cash received', hint: 'PostEx payouts and partner payments' },
-  { value: 'purchases', label: 'Purchases', hint: 'Goods received, vendor bills and payments' },
+  { value: 'cash', label: 'Money received', hint: 'PostEx payouts and partner payments' },
+  { value: 'cost', label: 'Cost of goods', hint: 'What the delivered products cost, damaged write-offs, PR packages' },
+  { value: 'purchases', label: 'Purchases', hint: 'Goods received, supplier bills and payments' },
   { value: 'expenses', label: 'Expenses', hint: 'Ads, salaries, rent, packaging and the rest' },
   { value: 'opening', label: 'Opening balances', hint: 'The balances the books started from' },
   { value: 'reversals', label: 'Reversals', hint: 'Entries undone, with the reason' },
 ];
+
+/** One colour per kind of money movement, so a page of entries reads at a glance. */
+const FAMILY_STYLE: Record<SourceFamily, string> = {
+  sale: 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300',
+  cost: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  postex: 'bg-orange-500/10 text-orange-800 dark:text-orange-300',
+  cash: 'bg-sky-500/10 text-sky-800 dark:text-sky-300',
+  purchase: 'bg-violet-500/10 text-violet-800 dark:text-violet-300',
+  expense: 'bg-rose-500/10 text-rose-800 dark:text-rose-300',
+  opening: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',
+  reversal: 'bg-muted text-muted-foreground',
+};
+
+const chipClass =
+  'rounded-full border px-3 py-1 text-xs hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground';
 
 /**
  * The journal: every entry the books hold, newest first, whoever posted it. Most are posted by the
@@ -58,18 +72,17 @@ export function JournalList() {
 
   return (
     <div className="space-y-3">
+      <div role="group" aria-label="Show" className="flex flex-wrap gap-1.5">
+        <button type="button" className={chipClass} aria-pressed={group === ''} onClick={() => reset(setGroup)('')}>
+          Everything
+        </button>
+        {JOURNAL_GROUPS.map((g) => (
+          <button key={g.value} type="button" className={chipClass} aria-pressed={group === g.value} title={g.hint} onClick={() => reset(setGroup)(g.value)}>
+            {g.label}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-end gap-2">
-        <label className="text-xs">
-          Kind
-          <select className={cn(selectClass, 'mt-1 block')} value={group} onChange={(e) => reset(setGroup)(e.target.value as JournalGroup | '')}>
-            <option value="">Everything</option>
-            {JOURNAL_GROUPS.map((g) => (
-              <option key={g.value} value={g.value} title={g.hint}>
-                {g.label}
-              </option>
-            ))}
-          </select>
-        </label>
         <label className="text-xs">
           From
           <Input type="date" className="mt-1 w-40" value={from} onChange={(e) => reset(setFrom)(e.target.value)} />
@@ -121,7 +134,9 @@ export function JournalList() {
                         <span className={cn(r.reversedBy && 'line-through')}>{r.memo}</span>
                         {r.reversedBy && <Badge variant="outline" className="ml-2">Reversed</Badge>}
                       </td>
-                      <td className="px-3 py-2 whitespace-nowrap">{sourceLabel(r.sourceType)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', FAMILY_STYLE[sourceFamily(r.sourceType)])}>{sourceLabel(r.sourceType)}</span>
+                      </td>
                       <td className="px-3 py-2 whitespace-nowrap">{r.stores.length === 0 ? 'Both' : r.stores.map((s) => (s === 'nur' ? 'NUR' : 'Organics')).join(', ')}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatPaisa(r.amount)}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{r.postedBy ?? <span className="text-muted-foreground">System</span>}</td>

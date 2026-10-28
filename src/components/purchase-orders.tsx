@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, CircleCheck, PackageCheck, Plus, ReceiptText, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, CircleCheck, PackageCheck, Plus, ReceiptText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { VariantPicker } from '@/components/variant-picker';
@@ -21,35 +21,73 @@ const storeName = (s: StoreKey) => (s === 'nur' ? 'NUR by Juggun' : "Juggun's Or
 
 export type NextStep = 'receive' | 'bill';
 
-/** What an order is waiting for, in words, and the step that does it. */
+/** What an order is waiting for, in a few words, and the button that does it. */
 const nextFor = (status: OrderStatus): { text: string; step: NextStep | null; action: string | null } => {
   switch (status) {
     case 'ordered':
-      return { text: 'Waiting for the goods to arrive', step: 'receive', action: 'Goods arrived: receive them' };
+      return { text: 'Waiting for the goods', step: 'receive', action: 'Goods arrived' };
     case 'partially_received':
-      return { text: 'Part of the goods arrived; the rest is still to come', step: 'receive', action: 'Receive the rest' };
+      return { text: 'Part arrived, the rest is to come', step: 'receive', action: 'Receive the rest' };
     case 'received':
-      return { text: 'Goods received; waiting for the supplier\'s bill', step: 'bill', action: 'Record the supplier\'s bill' };
+      return { text: "Waiting for the supplier's bill", step: 'bill', action: 'Add bill' };
     case 'billed':
-      return { text: 'Billed; waiting to be paid', step: 'bill', action: 'Record the payment' };
+      return { text: 'Waiting to be paid', step: 'bill', action: 'Pay' };
     case 'paid':
-      return { text: 'Done: received, billed and paid', step: null, action: null };
+      return { text: 'Done', step: null, action: null };
     case 'cancelled':
       return { text: 'Cancelled', step: null, action: null };
   }
 };
+
+const STAGES = ['Ordered', 'Received', 'Billed', 'Paid'] as const;
+/** How far an order has got, 1 (ordered) to 4 (paid); part of the goods arrived is half way to received. */
+const REACHED: Record<OrderStatus, number> = { ordered: 1, partially_received: 1.5, received: 2, billed: 3, paid: 4, cancelled: 0 };
+
+/** An order's four stages as a row of dots, the ones it has passed ticked: where it stands, at a glance. */
+export function OrderProgress({ status }: { status: OrderStatus }) {
+  if (status === 'cancelled') return <Badge variant="destructive">Cancelled</Badge>;
+  const at = REACHED[status];
+  return (
+    <ol className="flex w-60 max-w-full" aria-label={`Progress: ${ORDER_STATUS_TEXT[status].label}`}>
+      {STAGES.map((label, i) => {
+        const done = at >= i + 1;
+        const part = !done && at > i;
+        return (
+          <li key={label} className="relative flex flex-1 flex-col items-center gap-1 text-[11px] leading-none">
+            {i > 0 && <span aria-hidden className={cn('absolute top-2.5 right-1/2 h-0.5 w-full -translate-y-1/2', at > i ? 'bg-primary' : 'bg-border')} />}
+            <span
+              aria-hidden
+              className={cn(
+                'relative z-10 flex size-5 items-center justify-center rounded-full border bg-background',
+                done && 'border-primary bg-primary text-primary-foreground',
+                part && 'border-2 border-primary',
+              )}
+            >
+              {done && <Check className="size-3" />}
+              {part && <span className="size-2 rounded-full bg-primary" />}
+            </span>
+            <span className={cn('whitespace-nowrap', done || part ? 'font-medium text-foreground' : 'text-muted-foreground')}>{part ? 'Part received' : label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 /** Orders, optionally only those in the given statuses (the steps that act on an order show the ones that need it). */
 export function OrdersList({
   statuses,
   selected,
   onSelect,
+  onAction,
   reloadKey,
   empty,
 }: {
   statuses?: readonly OrderStatus[];
   selected: string | null;
   onSelect: (id: string | null) => void;
+  /** The order's next step, pressed on its row: receive the goods, add the bill, or pay. */
+  onAction?: (step: NextStep, poId: string) => void;
   reloadKey: number;
   /** What to say when no order is at this step. */
   empty?: string;
@@ -58,7 +96,7 @@ export function OrdersList({
   const orders = (data?.orders ?? []).filter((o) => !statuses || statuses.includes(o.status));
   return (
     <div>
-      {loading && !data && <TableSkeleton rows={4} label="Loading the orders" columns={[{ header: 'Order', sub: true }, 'Vendor', { header: 'Status', as: 'badge' }, num('Received'), num('Value')]} />}
+      {loading && !data && <TableSkeleton rows={4} label="Loading the orders" columns={[{ header: 'Order', sub: true }, 'Supplier', 'Progress', num('Arrived'), num('Value'), { as: 'button', align: 'right' }]} />}
       {error && !data && <p className="text-sm text-brand-coral">Could not load orders: {error}</p>}
       {data && orders.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">{empty ?? 'Nothing here.'}</p>}
       {orders.length > 0 && (
@@ -68,36 +106,50 @@ export function OrdersList({
             <thead className="bg-muted/40 text-left text-muted-foreground">
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">Order</th>
-                <th scope="col" className="px-3 py-2 font-medium">Vendor</th>
-                <th scope="col" className="px-3 py-2 font-medium">Status</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Received</th>
+                <th scope="col" className="px-3 py-2 font-medium">Supplier</th>
+                <th scope="col" className="px-3 py-2 font-medium">Progress</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium" title="Units arrived of units ordered">
+                  Arrived
+                </th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Value</th>
-                <th scope="col" className="px-3 py-2 font-medium">Next step</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Next</th>
               </tr>
             </thead>
             <tbody>
-              {orders.map((o) => (
-                <tr key={o.id} className={cn('border-t', selected === o.id && 'bg-muted/50')}>
-                  <th scope="row" className="px-3 py-2 text-left font-normal">
-                    <Button variant="link" className="h-auto p-0" aria-pressed={selected === o.id} onClick={() => onSelect(selected === o.id ? null : o.id)}>
-                      {o.number}
-                    </Button>
-                    <div className="text-xs text-muted-foreground">
-                      {o.orderedOn} · {storeName(o.store)}
-                      {o.expectedOn ? ` · due ${o.expectedOn}` : ''}
-                    </div>
-                  </th>
-                  <td className="px-3 py-2">{o.vendor}</td>
-                  <td className="px-3 py-2">
-                    <Badge variant={ORDER_STATUS_TEXT[o.status].variant}>{ORDER_STATUS_TEXT[o.status].label}</Badge>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {o.received} / {o.ordered}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatPaisa(o.total)}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{nextFor(o.status).text}</td>
-                </tr>
-              ))}
+              {orders.map((o) => {
+                const next = nextFor(o.status);
+                return (
+                  <tr key={o.id} className={cn('border-t', selected === o.id && 'bg-muted/50')}>
+                    <th scope="row" className="px-3 py-2 text-left font-normal">
+                      <Button variant="link" className="h-auto p-0" aria-pressed={selected === o.id} onClick={() => onSelect(selected === o.id ? null : o.id)}>
+                        {o.number}
+                      </Button>
+                      <div className="text-xs whitespace-nowrap text-muted-foreground">
+                        {o.orderedOn} · {storeName(o.store)}
+                        {o.expectedOn ? ` · due ${o.expectedOn}` : ''}
+                      </div>
+                    </th>
+                    <td className="px-3 py-2">{o.vendor}</td>
+                    <td className="px-3 py-2">
+                      <OrderProgress status={o.status} />
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                      {o.received} / {o.ordered}
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">{formatPaisa(o.total)}</td>
+                    <td className="px-3 py-2 text-right">
+                      {next.step && onAction ? (
+                        <Button size="sm" className="whitespace-nowrap" onClick={() => onAction(next.step!, o.id)} title={next.text}>
+                          {next.action}
+                          <ArrowRight className="size-4" />
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{next.text}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -210,18 +262,41 @@ function ReceiveForm({ order, onDone }: { order: PurchaseOrderDetail; onDone: ()
 
   if (open.length === 0) return <p className="text-sm text-muted-foreground">Everything on this order has arrived.</p>;
   return (
-    <div className="space-y-2">
-      {parsed.map(({ line, qty }) => (
-        <div key={line.id} className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="min-w-0 flex-1 truncate">{line.title}</span>
-          <span className="text-xs text-muted-foreground">{toReceive(line)} to come</span>
-          <Input className="w-24" inputMode="numeric" aria-label={`Received of ${line.title}`} value={qtys[line.id] ?? ''} aria-invalid={qty === null || qty > toReceive(line)} onChange={(e) => setQtys({ ...qtys, [line.id]: e.target.value })} />
-        </div>
-      ))}
+    <div className="space-y-3">
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <caption className="sr-only">Units arrived</caption>
+          <thead className="bg-muted/40 text-left text-muted-foreground">
+            <tr>
+              <th scope="col" className="px-3 py-2 font-medium">Product</th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">Still to come</th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">Arrived now</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parsed.map(({ line, qty }) => (
+              <tr key={line.id} className="border-t">
+                <td className="px-3 py-2">{line.title}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{toReceive(line)}</td>
+                <td className="px-3 py-2 text-right">
+                  <Input
+                    className="ml-auto h-8 w-24 text-right"
+                    inputMode="numeric"
+                    aria-label={`Units of ${line.title} arrived`}
+                    value={qtys[line.id] ?? ''}
+                    aria-invalid={qty === null || qty > toReceive(line)}
+                    onChange={(e) => setQtys({ ...qtys, [line.id]: e.target.value })}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <Input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
       <Button onClick={save} disabled={saving || bad || lines.length === 0}>
         <PackageCheck className="size-4" />
-        Record receipt
+        Save: {lines.reduce((n, p) => n + (p.qty ?? 0), 0)} units arrived
       </Button>
     </div>
   );
@@ -287,24 +362,47 @@ function BillForm({ order, onDone }: { order: PurchaseOrderDetail; onDone: () =>
   }
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <Input className="w-44" placeholder="Vendor's bill number" aria-label="Bill number" value={billNumber} onChange={(e) => setBillNumber(e.target.value)} />
-        <label className="flex items-center gap-1.5 text-sm">
-          Bill date
-          <input type="date" className={dateClass} value={billDate} max={today()} onChange={(e) => setBillDate(e.target.value)} />
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-xs">
+          Supplier's bill no.
+          <Input className="mt-1 w-44" placeholder="e.g. INV-1042" value={billNumber} onChange={(e) => setBillNumber(e.target.value)} />
         </label>
-        <label className="flex items-center gap-1.5 text-sm">
-          Due
-          <input type="date" className={dateClass} value={dueOn} min={billDate} onChange={(e) => setDueOn(e.target.value)} />
+        <label className="text-xs">
+          Bill date
+          <input type="date" className={cn(dateClass, 'mt-1 block')} value={billDate} max={today()} onChange={(e) => setBillDate(e.target.value)} />
+        </label>
+        <label className="text-xs">
+          Pay by (optional)
+          <input type="date" className={cn(dateClass, 'mt-1 block')} value={dueOn} min={billDate} onChange={(e) => setDueOn(e.target.value)} />
         </label>
       </div>
-      {lines.map((l, i) => (
-        <div key={l.poLineId} className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="min-w-0 flex-1 truncate">{title(l.poLineId)}</span>
-          <Input className="w-24" inputMode="numeric" aria-label={`Units billed of ${title(l.poLineId)}`} value={l.qty} aria-invalid={parsedLines[i]!.qty === null} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} />
-          <Input className="w-32" inputMode="decimal" aria-label={`Unit price billed of ${title(l.poLineId)}`} value={l.price} aria-invalid={parsedLines[i]!.paisa === null} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} />
+      {lines.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <caption className="sr-only">What the bill charges for</caption>
+            <thead className="bg-muted/40 text-left text-muted-foreground">
+              <tr>
+                <th scope="col" className="px-3 py-2 font-medium">Product</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Units on bill</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Rs per unit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l, i) => (
+                <tr key={l.poLineId} className="border-t">
+                  <td className="px-3 py-2">{title(l.poLineId)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Input className="ml-auto h-8 w-24 text-right" inputMode="numeric" aria-label={`Units billed of ${title(l.poLineId)}`} value={l.qty} aria-invalid={parsedLines[i]!.qty === null} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <Input className="ml-auto h-8 w-28 text-right" inputMode="decimal" aria-label={`Unit price billed of ${title(l.poLineId)}`} value={l.price} aria-invalid={parsedLines[i]!.paisa === null} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ))}
+      )}
       {charges.map((c, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
           <Input className="min-w-40 flex-1" placeholder="Freight, packing…" aria-label="Charge description" value={c.description} onChange={(e) => setCharges(charges.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
@@ -332,7 +430,7 @@ function BillForm({ order, onDone }: { order: PurchaseOrderDetail; onDone: () =>
       )}
       <Button onClick={save} disabled={!valid || saving}>
         <ReceiptText className="size-4" />
-        Record bill
+        Save the bill
       </Button>
     </div>
   );
@@ -373,7 +471,7 @@ export function OrderDetail({ poId, focus, onChanged, onNext }: { poId: string; 
           <Skeleton aria-hidden className="h-5 w-20 rounded-full" />
         </CardHeader>
         <CardContent className="space-y-5">
-          <TableSkeleton rows={3} label="Loading the order" columns={['Product', num('Ordered'), num('Received'), num('Billed'), num('Unit cost')]} />
+          <TableSkeleton rows={3} label="Loading the order" columns={['Product', num('Ordered'), num('Received'), num('Billed'), num('Rs per unit')]} />
         </CardContent>
       </Card>
     );
@@ -403,21 +501,27 @@ export function OrderDetail({ poId, focus, onChanged, onNext }: { poId: string; 
         {(() => {
           const next = nextFor(order.status);
           const here = next.step === focus;
+          const doNow =
+            here && next.step === 'receive'
+              ? 'Next: type how many arrived, below'
+              : here && order.status === 'received'
+                ? "Next: type the supplier's bill, below"
+                : here && order.status === 'billed'
+                  ? 'Next: press Pay on its bill, under Bills to pay'
+                  : next.text;
           return (
-            <div className={cn('flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm', next.step ? 'border-primary/40 bg-primary/5' : 'bg-muted/40')}>
-              {next.step ? <ArrowRight className="size-4 shrink-0 text-primary" /> : <CircleCheck className="size-4 shrink-0 text-muted-foreground" />}
-              <span className="flex-1">
-                <span className="font-medium">{next.text}.</span>
-                {here && next.step === 'receive' && ' Enter what arrived below; it goes onto the shelf at this order\'s price.'}
-                {here && next.step === 'bill' && order.status === 'received' && ' Enter the supplier\'s bill below; it must match what was ordered and received.'}
-                {here && order.status === 'billed' && ' Record the payment against the bill in "Bills and payments" above.'}
-              </span>
-              {next.step && !here && onNext && (
-                <Button size="sm" onClick={() => onNext(next.step!, order.id)}>
-                  {next.action}
-                  <ArrowRight className="size-4" />
-                </Button>
-              )}
+            <div className={cn('flex flex-wrap items-center justify-between gap-4 rounded-lg border p-3 text-sm', next.step ? 'border-primary/40 bg-primary/5' : 'bg-muted/40')}>
+              <OrderProgress status={order.status} />
+              <div className="flex flex-wrap items-center gap-2">
+                {next.step ? <ArrowRight className="size-4 shrink-0 text-primary" /> : <CircleCheck className="size-4 shrink-0 text-muted-foreground" />}
+                <span className="font-medium">{doNow}</span>
+                {next.step && !here && onNext && (
+                  <Button size="sm" onClick={() => onNext(next.step!, order.id)}>
+                    {next.action}
+                    <ArrowRight className="size-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           );
         })()}
@@ -430,7 +534,7 @@ export function OrderDetail({ poId, focus, onChanged, onNext }: { poId: string; 
                 <th scope="col" className="px-3 py-2 text-right font-medium">Ordered</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Received</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Billed</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">Unit cost</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Rs per unit</th>
               </tr>
             </thead>
             <tbody>
@@ -448,14 +552,14 @@ export function OrderDetail({ poId, focus, onChanged, onNext }: { poId: string; 
         </div>
 
         {order.status !== 'cancelled' && focus === 'receive' && (
-          <section aria-label="Receive goods">
-            <h3 className="mb-2 font-semibold">Receive goods</h3>
+          <section aria-label="Goods arrived">
+            <h3 className="mb-2 font-semibold">Goods arrived</h3>
             <ReceiveForm key={order.received} order={order} onDone={changed} />
           </section>
         )}
         {order.status !== 'cancelled' && focus === 'bill' && (
-          <section aria-label="Record the vendor's bill">
-            <h3 className="mb-2 font-semibold">Vendor's bill</h3>
+          <section aria-label="The supplier's bill">
+            <h3 className="mb-2 font-semibold">Supplier's bill</h3>
             <BillForm key={order.billed} order={order} onDone={changed} />
           </section>
         )}

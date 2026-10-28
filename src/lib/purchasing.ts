@@ -6,10 +6,10 @@ export const today = (): string => karachiLocal(new Date()).slice(0, 10);
 
 /** The four steps of buying, in order; the screen is organised around them. */
 export const STEPS = [
-  { key: 'requests', label: 'Request', hint: 'Someone says what is needed' },
-  { key: 'orders', label: 'Order', hint: 'We commit to one vendor' },
-  { key: 'receive', label: 'Receive', hint: 'The goods arrive' },
-  { key: 'bills', label: 'Bill', hint: 'The vendor bills, we pay' },
+  { key: 'requests', label: 'Request', hint: 'Write what we need' },
+  { key: 'orders', label: 'Order', hint: 'Place it with a supplier' },
+  { key: 'receive', label: 'Receive', hint: 'Count what arrived' },
+  { key: 'bills', label: 'Bill and pay', hint: "Enter the supplier's bill, then pay" },
 ] as const;
 
 export type StepKey = (typeof STEPS)[number]['key'];

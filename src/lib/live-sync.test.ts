@@ -21,6 +21,12 @@ describe('dataVersion', () => {
     expect(dataVersion(later)).not.toBe(dataVersion(status()));
     expect(dataVersion(status({ jobs: [job('system.heartbeat', '2026-10-24T10:05:00Z')] }))).toBe('');
   });
+
+  it('moves when a webhook change is stored, between syncs', () => {
+    const webhook = status({ lastWebhookProcessedAt: '2026-10-24T10:00:04Z' });
+    expect(dataVersion(webhook)).toBe('2026-10-24T10:00:04Z');
+    expect(dataVersion(webhook)).not.toBe(dataVersion(status()));
+  });
 });
 
 describe('freshness', () => {

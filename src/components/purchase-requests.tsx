@@ -20,7 +20,7 @@ const dateClass = 'h-9 rounded-lg border bg-background px-2 text-sm focus-visibl
 const storeName = (s: StoreKey) => (s === 'nur' ? 'NUR by Juggun' : "Juggun's Organics");
 
 const STATUS: Record<PurchaseRequest['status'], { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  open: { label: 'Waiting for an order', variant: 'outline' },
+  open: { label: 'To order', variant: 'outline' },
   quoted: { label: 'Quoted', variant: 'secondary' },
   ordered: { label: 'Ordered', variant: 'default' },
   cancelled: { label: 'Cancelled', variant: 'destructive' },
@@ -235,9 +235,10 @@ function CreateOrder({
 
 /**
  * Step 1: someone says what is needed, by hand or from the reorder suggestions. Tick the requests
- * to buy from one supplier and create the order; a quote first is optional.
+ * to buy from one supplier and create the order; a quote first is optional. `onChanged` is told of
+ * every request added or cancelled, so the step counts above stay right.
  */
-export function RequestsStep({ onOrdered }: { onOrdered: (poId: string) => void }) {
+export function RequestsStep({ onOrdered, onChanged }: { onOrdered: (poId: string) => void; onChanged?: () => void }) {
   const [all, setAll] = useState(false);
   const requests = useApi<{ requests: PurchaseRequest[] }>(`/api/v1/purchasing/requests${all ? '?all=true' : ''}`);
   const suggestions = useApi<{ suggestions: ReorderSuggestion[] }>('/api/v1/purchasing/reorder-suggestions');
@@ -256,6 +257,7 @@ export function RequestsStep({ onOrdered }: { onOrdered: (poId: string) => void 
       await apiPost(`/api/v1/purchasing/requests/${id}/cancel`, {});
       setPicked(picked.filter((p) => p !== id));
       requests.reload();
+      onChanged?.();
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Could not cancel');
     } finally {
@@ -274,6 +276,7 @@ export function RequestsStep({ onOrdered }: { onOrdered: (poId: string) => void 
       toast.success(`Requested ${s.suggestedQty} of ${s.title}`);
       requests.reload();
       suggestions.reload();
+      onChanged?.();
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Could not record the request');
     } finally {
@@ -289,11 +292,11 @@ export function RequestsStep({ onOrdered }: { onOrdered: (poId: string) => void 
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <div>
             <CardTitle>Requests</CardTitle>
-            <CardDescription>What needs buying. Tick the ones to order from one supplier, then create the order.</CardDescription>
+            <CardDescription>Press Order on one, or tick several for the same supplier.</CardDescription>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
-            Include ordered and cancelled
+            Show ordered and cancelled too
           </label>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -326,7 +329,7 @@ export function RequestsStep({ onOrdered }: { onOrdered: (poId: string) => void 
             <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-10 text-center">
               <ShoppingCart className="size-8 text-muted-foreground" />
               <p className="font-medium">Nothing waiting to be bought</p>
-              <p className="max-w-sm text-sm text-muted-foreground">Add a request on the right, or press Request on a product under "What to order now".</p>
+              <p className="max-w-sm text-sm text-muted-foreground">Add one on the right, or press Request under "What to order now".</p>
             </div>
           )}
           <ul className="divide-y">
@@ -373,10 +376,15 @@ export function RequestsStep({ onOrdered }: { onOrdered: (poId: string) => void 
       <Card>
         <CardHeader>
           <CardTitle>New request</CardTitle>
-          <CardDescription>Anyone can ask for stock. Pick the product and how many.</CardDescription>
+          <CardDescription>Pick a product and how many.</CardDescription>
         </CardHeader>
         <CardContent>
-          <NewRequest onDone={requests.reload} />
+          <NewRequest
+            onDone={() => {
+              requests.reload();
+              onChanged?.();
+            }}
+          />
         </CardContent>
       </Card>
 
@@ -384,9 +392,8 @@ export function RequestsStep({ onOrdered }: { onOrdered: (poId: string) => void 
         <CardHeader>
           <CardTitle>What to order now</CardTitle>
           <CardDescription>
-            Worked out from what really reached customers in the last {suggestions.data?.suggestions[0]?.windowDays ?? 30} days, not from orders placed (a parcel still out may come
-            back). "Order" is enough to cover the supplier's lead time and the cover period, less what is on the shelf and already on order. Shelf figures are only right once
-            the shelf has been counted on the Inventory page.
+            From what customers received in the last {suggestions.data?.suggestions[0]?.windowDays ?? 30} days. The shelf figures are right once stock is counted on the Inventory
+            page.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -406,10 +413,10 @@ export function RequestsStep({ onOrdered }: { onOrdered: (poId: string) => void 
                   <tr>
                     <th scope="col" className="px-3 py-2 font-medium">Product</th>
                     <th scope="col" className="px-3 py-2 text-right font-medium" title="Units delivered to customers per day">Sold / day</th>
-                    <th scope="col" className="px-3 py-2 text-right font-medium">On shelf</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium" title="Units on our shelf now">On shelf</th>
                     <th scope="col" className="px-3 py-2 text-right font-medium" title="Ordered from suppliers, not arrived yet">On order</th>
-                    <th scope="col" className="px-3 py-2 text-right font-medium" title="Days the shelf and what is on order last at this rate">Cover</th>
-                    <th scope="col" className="px-3 py-2 text-right font-medium">Order</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium" title="Days the shelf and what is on order last at this rate">Lasts</th>
+                    <th scope="col" className="px-3 py-2 text-right font-medium" title="Units to order: enough for the supplier's lead time and the cover period">Order</th>
                     <th scope="col" className="px-3 py-2 font-medium">Last supplier</th>
                     <th scope="col" className="px-3 py-2"><span className="sr-only">Request</span></th>
                   </tr>

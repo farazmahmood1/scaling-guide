@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { type SyncRunResponse, type SyncStatus, apiGet, apiPost } from '@/lib/api';
-import { ASK_EVERY_MS, dataVersion } from '@/lib/live-sync';
+import { ASK_EVERY_MS, READ_EVERY_MS, dataVersion } from '@/lib/live-sync';
 import { queryClient } from '@/lib/query-client';
 
 const TURN_KEY = 'nur.live-sync.asked-at';
@@ -26,9 +26,10 @@ const claimTurn = (): boolean => {
 /**
  * Keeps the open app current with Shopify and PostEx. Every minute while the tab is visible it
  * asks the server for the syncs that are due (where no worker runs, this is what runs them), and
- * whenever a sync has finished since the last look, everything on screen is read again: the
- * figures change without a reload, and only when there is something new. `syncNow` asks for the
- * Shopify and PostEx syncs at once, whatever their schedule.
+ * every ten seconds in between it reads the status. Whenever a sync has finished or a webhook's
+ * change was stored since the last look, everything on screen is read again: the figures change
+ * without a reload, and only when there is something new. `syncNow` asks for the Shopify and
+ * PostEx syncs at once, whatever their schedule.
  */
 export function useLiveSync() {
   const [status, setStatus] = useState<SyncStatus>();
@@ -70,7 +71,8 @@ export function useLiveSync() {
       else void apiGet<SyncStatus>('/api/v1/sync/status').then(absorb, () => {});
     };
     tick();
-    const timer = window.setInterval(tick, ASK_EVERY_MS);
+    // claimTurn lets one tick a minute ask for the syncs; the ticks between only read the status.
+    const timer = window.setInterval(tick, READ_EVERY_MS);
     // Coming back to the tab after a while: catch up straight away rather than at the next tick.
     document.addEventListener('visibilitychange', tick);
     return () => {

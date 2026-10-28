@@ -16,7 +16,7 @@ import { DEFAULT_WINDOW, PAYMENT_CSV_HEADER, PAYMENT_WINDOWS, chargesText, charg
 import { cn } from '@/lib/utils';
 
 const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
-const COLUMNS = ['Order', 'Paid', num('Payment'), num('Delivery + tax'), num('Product cost'), num('Profit'), num('Margin')];
+const COLUMNS = ['Order', 'Paid', num('Payment'), num('Delivery + tax'), num('Product cost'), num('Profit')];
 
 function Tile({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: 'loss' }) {
   return (
@@ -28,15 +28,30 @@ function Tile({ label, value, hint, tone }: { label: string; value: string; hint
   );
 }
 
-/** The period's totals: what PostEx paid, what it kept, what the goods cost and what it all made. */
+/**
+ * The money picture: what PostEx paid in the period, what it still owes now, the delivery fee and
+ * the tax it kept from those payments, and what the paid orders left us after everything.
+ */
 export function PaymentsSummary({ data }: { data: PaymentsData }) {
   const t = data.totals;
+  const paid = t.orders > 0;
   return (
-    <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      <Tile label="Payment received" value={formatPaisa(t.payment)} hint={`${t.orders.toLocaleString('en-PK')} orders, from ${formatPaisa(t.cod)} cash on delivery`} />
-      <Tile label="PostEx kept" value={formatPaisa(chargesTotal(t.deliveryFee, t.deliveryTax))} hint={`Delivery ${formatPaisa(t.deliveryFee)} + tax ${formatPaisa(t.deliveryTax)}`} />
-      <Tile label="Product cost" value={formatPaisa(t.goods)} hint="What the goods sold cost us" />
-      <Tile label="Profit" value={formatPaisa(t.profit)} hint={`Margin ${marginText(t.profit, t.revenue)} of the sale`} tone={BigInt(t.profit) < 0n ? 'loss' : undefined} />
+    <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <Tile label="Received from PostEx" value={formatPaisa(t.payment)} hint={paid ? `${t.orders.toLocaleString('en-PK')} orders, from ${formatPaisa(t.cod)} cash on delivery` : 'Nothing paid in this period'} />
+      <Tile
+        label="PostEx still owes"
+        value={formatPaisa(data.owed.amount)}
+        hint={`${data.owed.parcels.toLocaleString('en-PK')} parcels delivered, not paid yet (after PostEx's charges)`}
+        tone={BigInt(data.owed.amount) < 0n ? 'loss' : undefined}
+      />
+      <Tile label="Delivery fee" value={formatPaisa(t.deliveryFee)} hint="PostEx kept this from the payments" />
+      <Tile label="Tax kept by PostEx" value={formatPaisa(t.deliveryTax)} hint={`On the delivery fee; ${formatPaisa(chargesTotal(t.deliveryFee, t.deliveryTax))} kept in all`} />
+      <Tile
+        label="Profit (money left)"
+        value={formatPaisa(t.profit)}
+        hint={paid ? `After product cost ${formatPaisa(t.goods)}, delivery and tax; margin ${marginText(t.profit, t.revenue)}` : 'On orders paid in this period'}
+        tone={BigInt(t.profit) < 0n ? 'loss' : undefined}
+      />
     </dl>
   );
 }
@@ -58,7 +73,6 @@ export function PaymentsTable({ data }: { data: PaymentsData }) {
               <th scope="col" className="px-3 py-2 text-right font-medium">Delivery + tax</th>
               <th scope="col" className="px-3 py-2 text-right font-medium">Product cost</th>
               <th scope="col" className="px-3 py-2 text-right font-medium">Profit</th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">Margin</th>
             </tr>
           </thead>
           <tbody>
@@ -83,7 +97,7 @@ export function PaymentsTable({ data }: { data: PaymentsData }) {
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   <span className="font-medium">{formatPaisa(r.payment)}</span>
-                  {/* Paid before delivery (online): PostEx had nothing to collect and took its fee from the batch. */}
+                  {/* Paid before delivery (online), or returned: PostEx had nothing to collect and took its charges from the batch. */}
                   <div className="text-xs text-muted-foreground">{BigInt(r.cod) === 0n ? 'no cash to collect' : `of ${formatPaisa(r.cod)} COD`}</div>
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">
@@ -92,7 +106,6 @@ export function PaymentsTable({ data }: { data: PaymentsData }) {
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{missingCost(r) ? <Badge variant="outline">No cost price</Badge> : formatPaisa(r.goods)}</td>
                 <td className={cn('px-3 py-2 text-right font-medium tabular-nums', BigInt(r.profit) < 0n && 'text-brand-coral')}>{formatPaisa(r.profit)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{marginText(r.profit, r.revenue)}</td>
               </tr>
             ))}
           </tbody>
@@ -105,7 +118,6 @@ export function PaymentsTable({ data }: { data: PaymentsData }) {
               <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">{chargesText(t.deliveryFee, t.deliveryTax)}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatPaisa(t.goods)}</td>
               <td className={cn('px-3 py-2 text-right tabular-nums', BigInt(t.profit) < 0n && 'text-brand-coral')}>{formatPaisa(t.profit)}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{marginText(t.profit, t.revenue)}</td>
             </tr>
           </tfoot>
         </table>
@@ -202,13 +214,9 @@ export function PaymentsPage() {
               </Button>
             </p>
           )}
+          {data && <PaymentsSummary data={data} />}
           {data && data.rows.length === 0 && <NoPayments data={data} label={label} onChoose={choose} />}
-          {data && data.rows.length > 0 && (
-            <>
-              <PaymentsSummary data={data} />
-              <PaymentsTable data={data} />
-            </>
-          )}
+          {data && data.rows.length > 0 && <PaymentsTable data={data} />}
         </CardContent>
       </Card>
     </>

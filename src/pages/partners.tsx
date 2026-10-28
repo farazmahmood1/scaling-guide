@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, RefreshCw } from 'lucide-react';
-import { useSearchParams } from 'react-router';
+import { ChevronRight, FileSpreadsheet, type LucideIcon, Plus, RefreshCw, Store, Truck, Wallet } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 
 import { PartnerDetail } from '@/components/partner-detail';
@@ -56,6 +56,45 @@ function AddPartner({ onAdded }: { onAdded: (id: string) => void }) {
   );
 }
 
+const HOW: ReadonlyArray<{ icon: LucideIcon; title: string; text: string }> = [
+  { icon: Store, title: 'Add the shop', text: 'A shop that sells our products for us' },
+  { icon: Truck, title: 'Send it stock', text: 'The units leave our shelf, still ours' },
+  { icon: FileSpreadsheet, title: 'Import its sales sheet', text: 'What it sold becomes a sale' },
+  { icon: Wallet, title: 'It owes us', text: 'For what it sold, shown per shop' },
+];
+
+/** How consignment works, as four pictures in a row, and what a partner is not. */
+function HowPartnersWork() {
+  return (
+    <div className="mb-6 space-y-2">
+      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+        {HOW.map((h, i) => (
+          <li key={h.title} className="relative flex items-center gap-3 rounded-xl border p-3 text-sm">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+              <h.icon className="size-5" aria-hidden />
+            </span>
+            <span>
+              <span className="block text-xs text-muted-foreground">Step {i + 1}</span>
+              <span className="block font-semibold">{h.title}</span>
+              <span className="block text-xs text-muted-foreground">{h.text}</span>
+            </span>
+            {i < HOW.length - 1 && (
+              <ChevronRight aria-hidden className="absolute top-1/2 -right-3.5 z-10 hidden size-5 -translate-y-1/2 rounded-full border bg-background p-0.5 text-muted-foreground lg:block" />
+            )}
+          </li>
+        ))}
+      </ol>
+      <p className="text-xs text-muted-foreground">
+        Partners are shops, not people who sign in. People who use this app are under{' '}
+        <Link className="underline underline-offset-2" to="/settings?section=users">
+          Settings → Users and roles
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}
+
 /**
  * Retail partners holding our stock on consignment: what each holds and owes, moving goods to and
  * from them, and importing their sales sheets. The selected partner is in the address, so the view
@@ -80,7 +119,7 @@ export function PartnersPage() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Partners</h1>
-          <p className="text-sm text-muted-foreground">Retail partners holding our stock on consignment, and what they owe.</p>
+          <p className="text-sm text-muted-foreground">Shops that keep our stock and sell it for us (consignment), and what each owes us.</p>
         </div>
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
           <RefreshCw className={loading ? 'size-4 animate-spin' : 'size-4'} />
@@ -88,16 +127,24 @@ export function PartnersPage() {
         </Button>
       </div>
 
+      <HowPartnersWork />
+
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>{data ? `${partners.length} partner${partners.length === 1 ? '' : 's'}` : 'Partners'}</CardTitle>
-            <CardDescription>Choose one to see its holdings, move stock and import its sales sheet.</CardDescription>
+            <CardTitle>{data ? `${partners.length} partner shop${partners.length === 1 ? '' : 's'}` : 'Partner shops'}</CardTitle>
+            <CardDescription>Choose one to send stock, bring it back or import its sales sheet.</CardDescription>
           </CardHeader>
           <CardContent>
             {loading && !data && <TableSkeleton rows={4} label="Loading the partners" columns={['Partner', 'City', num('Units held'), num('Owes us')]} />}
             {error && !data && <p className="text-sm text-brand-coral">Could not load partners: {error}</p>}
-            {data && partners.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No partners yet. Add the first one.</p>}
+            {data && partners.length === 0 && (
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-8 text-center">
+                <Store className="size-8 text-muted-foreground" aria-hidden />
+                <p className="font-medium">No partner shops yet</p>
+                <p className="max-w-sm text-sm text-muted-foreground">Only needed if a shop sells our products for us. Add it on the right.</p>
+              </div>
+            )}
             {partners.length > 0 && (
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
@@ -133,8 +180,8 @@ export function PartnersPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Add a partner</CardTitle>
-            <CardDescription>Each partner gets a stock location of its own.</CardDescription>
+            <CardTitle>Add a partner shop</CardTitle>
+            <CardDescription>Its stock is kept apart from our shelf.</CardDescription>
           </CardHeader>
           <CardContent>
             <AddPartner

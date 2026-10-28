@@ -18,6 +18,8 @@ export const monthLabel = (key: string): string => {
   const [y, m] = key.split('-');
   return `${MONTHS[Number(m) - 1] ?? key} ${y}`;
 };
+/** A `YYYY-MM-DD` day as people say it: `2026-11-05` → `5 Nov 2026`. */
+export const dayLabel = (day: string): string => `${Number(day.slice(8, 10))} ${monthLabel(day.slice(0, 7))}`;
 
 /** The months the books are closed for, as `YYYY-MM`. */
 export const closedMonths = (periods: readonly Pick<Period, 'year' | 'month' | 'status'>[]): Set<string> =>
@@ -52,7 +54,7 @@ export const closedInRange = (from: string | null, to: string | null, closed: Re
  */
 export const closeBlocker = (period: Pick<Period, 'year' | 'month' | 'status' | 'closableFrom'>, periods: readonly Pick<Period, 'year' | 'month' | 'status' | 'entries'>[], today: string): string | null => {
   if (period.status === 'closed') return 'Already closed';
-  if (today < period.closableFrom) return `Can be closed from ${period.closableFrom}`;
+  if (today < period.closableFrom) return `Can be closed from ${dayLabel(period.closableFrom)}`;
   const key = monthKey(period.year, period.month);
   const earlier = periods
     .filter((p) => p.status === 'open' && p.entries > 0 && monthKey(p.year, p.month) < key)
@@ -130,6 +132,65 @@ const SOURCE_LABELS: Record<string, string> = {
   reversal: 'Reversal',
 };
 export const sourceLabel = (type: string): string => SOURCE_LABELS[type] ?? type.replaceAll('_', ' ');
+
+/** The family an entry belongs to, for its colour in the journal: what kind of money movement it is. */
+export type SourceFamily = 'sale' | 'cost' | 'postex' | 'cash' | 'purchase' | 'expense' | 'opening' | 'reversal';
+const SOURCE_FAMILY: Record<string, SourceFamily> = {
+  shipment_sale: 'sale',
+  consignment_sale: 'sale',
+  shipment_cogs: 'cost',
+  consignment_cogs: 'cost',
+  shipment_write_off: 'cost',
+  pr_send: 'cost',
+  shipment_forward_charge: 'postex',
+  shipment_return_charge: 'postex',
+  payout_line: 'cash',
+  partner_payment: 'cash',
+  vendor_bill: 'purchase',
+  vendor_payment: 'purchase',
+  goods_receipt: 'purchase',
+  expense: 'expense',
+  opening_balance: 'opening',
+  reversal: 'reversal',
+};
+export const sourceFamily = (type: string): SourceFamily => SOURCE_FAMILY[type] ?? 'reversal';
+
+/** Each account in everyday words, for the plain reading of an entry. Unknown codes keep their book name. */
+const PLAIN_ACCOUNT: Record<string, string> = {
+  '1000': 'Money in bank',
+  '1010': 'Cash in hand',
+  '1100': 'PostEx owes us',
+  '1150': 'Customers owe us',
+  '1200': 'Partner shops owe us',
+  '1300': 'Stock value',
+  '1400': 'Tax we can claim back',
+  '2000': 'We owe suppliers',
+  '2050': 'We owe for goods not billed yet',
+  '2100': 'Sales tax we owe',
+  '3000': "Owner's money",
+  '3100': 'Opening balances',
+  '4000': 'Sales',
+  '5000': 'Cost of goods sold',
+  '5010': 'Price difference on purchases',
+  '6000': 'PostEx delivery charges',
+  '6010': 'PostEx return charges',
+  '6020': 'Tax on PostEx charges',
+  '6100': 'PR and marketing',
+  '6200': 'Damaged stock written off',
+};
+export const plainAccount = (code: string, name: string): string => PLAIN_ACCOUNT[code] ?? name;
+
+/**
+ * What one line did, in everyday terms: an account going up or down by an amount. Assets and
+ * expenses go up with a debit; what we owe, the owner's money and income go up with a credit.
+ * The first digit of the code is the account's type (1 asset, 2 owed, 3 owner, 4 income, 5-6 cost).
+ */
+export const lineEffect = (code: string, debit: string, credit: string): { up: boolean; amount: string } => {
+  const debitUp = code.startsWith('1') || code.startsWith('5') || code.startsWith('6');
+  const net = BigInt(debit) - BigInt(credit);
+  const up = debitUp ? net >= 0n : net <= 0n;
+  return { up, amount: (net < 0n ? -net : net).toString() };
+};
 
 /** Every line of a drill, a page at a time, for the CSV export. Capped, and says when it was. */
 export const EXPORT_LINE_CAP = 50_000;

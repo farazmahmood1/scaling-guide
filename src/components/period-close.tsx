@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, LockOpen } from 'lucide-react';
+import { CalendarClock, Lock, LockOpen, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/auth-context';
@@ -13,6 +13,13 @@ import { type Period, apiPost } from '@/lib/api';
 import { formatKarachiFull } from '@/lib/format';
 import { closeBlocker, monthKey, monthLabel } from '@/lib/ledger';
 import { cn } from '@/lib/utils';
+
+/** What closing a month means, in three short rules. */
+const RULES = [
+  { icon: Lock, text: 'Closing a month locks it: its numbers and reports never change after that.' },
+  { icon: CalendarClock, text: 'A month can be closed from the 5th of the next month, so late PostEx charges get in first.' },
+  { icon: TriangleAlert, text: 'It cannot be undone. Months close in order, oldest first.' },
+] as const;
 
 /**
  * Closing a month, with its guard rails in plain sight. A closed month is final and is drawn as
@@ -47,12 +54,14 @@ export function PeriodClose() {
 
   return (
     <div className="space-y-4">
-      <div role="note" className="flex items-start gap-3 rounded-lg border p-3 text-sm">
-        <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
-        <p>
-          A month can be closed from the 5th of the next, and only after every earlier month with entries is closed. <strong>A closed month can never be reopened:</strong> nothing can be dated in it, and a correction is posted in the next open month.
-        </p>
-      </div>
+      <ul role="note" className="grid gap-2 sm:grid-cols-3">
+        {RULES.map((r) => (
+          <li key={r.text} className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+            <r.icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span>{r.text}</span>
+          </li>
+        ))}
+      </ul>
       {loading && !periods && (
         <Loading label="Loading the months" className="space-y-2">
           {Array.from({ length: 4 }, (_, i) => (
@@ -85,10 +94,17 @@ export function PeriodClose() {
                 <div className="flex items-center gap-3">
                   {isClosed ? <Lock className="size-5 text-slate-600 dark:text-slate-300" aria-hidden /> : <LockOpen className="size-5 text-muted-foreground" aria-hidden />}
                   <div>
-                    <p className="font-semibold">{monthLabel(key)}</p>
+                    <p className="flex flex-wrap items-center gap-2 font-semibold">
+                      {monthLabel(key)}
+                      {!isClosed && (
+                        <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', blocker ? 'bg-muted text-muted-foreground' : 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300')}>
+                          {blocker ? 'Open' : 'Ready to close'}
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {period.entries} entries
-                      {isClosed ? ` · closed ${period.closedAt ? formatKarachiFull(period.closedAt) : ''} by ${period.closedBy ?? 'unknown'}` : ' · open'}
+                      {isClosed ? ` · closed ${period.closedAt ? formatKarachiFull(period.closedAt) : ''} by ${period.closedBy ?? 'unknown'}` : ''}
                     </p>
                   </div>
                 </div>

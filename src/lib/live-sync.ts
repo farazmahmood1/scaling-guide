@@ -10,16 +10,21 @@ import { fromNow } from '@/lib/format';
 /** How often an open app asks the server for the syncs that are due. The server says no quickly when none are. */
 export const ASK_EVERY_MS = 60_000;
 
-/** The jobs whose finishing means figures on screen may have changed. */
-const DATA_JOBS = ['shopify:orders', 'shopify:catchup', 'postex:sync', 'reconciliation:scan'];
+/**
+ * How often an open app reads the status in between: a Shopify webhook stores a change within a
+ * second or two, and this is how soon the screen shows it. The status is a few indexed reads.
+ */
+export const READ_EVERY_MS = 10_000;
 
-/** A mark that moves whenever one of those jobs finishes successfully: compare two to know whether to re-read. */
+/** The jobs whose finishing means figures on screen may have changed. */
+const DATA_JOBS = ['shopify:orders', 'shopify:catchup', 'shopify:catalogue', 'postex:sync', 'postex:payouts', 'reconciliation:scan'];
+
+/**
+ * A mark that moves whenever one of those jobs finishes successfully, or a webhook's change is
+ * stored: compare two to know whether to re-read.
+ */
 export const dataVersion = (status: SyncStatus): string =>
-  status.jobs
-    .filter((j) => DATA_JOBS.includes(j.name))
-    .map((j) => j.lastSucceededAt ?? '')
-    .sort()
-    .at(-1) ?? '';
+  [...status.jobs.filter((j) => DATA_JOBS.includes(j.name)).map((j) => j.lastSucceededAt ?? ''), status.lastWebhookProcessedAt ?? ''].sort().at(-1) ?? '';
 
 export type Freshness = 'fresh' | 'stale' | 'unknown';
 

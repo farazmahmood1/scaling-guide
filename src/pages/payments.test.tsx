@@ -21,6 +21,7 @@ const data: PaymentsData = {
       payment: '130000', cod: '150000', deliveryFee: '20000', deliveryTax: '0', revenue: '150000', goods: '0', other: '0', profit: '130000',
     },
   ],
+  owed: { amount: '885900', parcels: 12 },
   totals: { orders: 2, parcels: 2, payment: '381800', cod: '425000', deliveryFee: '40000', deliveryTax: '3200', revenue: '425000', goods: '90000', profit: '291800' },
 };
 
@@ -36,7 +37,7 @@ describe('the payments table', () => {
     expect(html).toContain('Rs 200.00 + Rs 32.00');
     expect(html).toContain('= Rs 232.00');
     expect(html).toContain('Rs 1,618.00');
-    expect(html).toContain('58.8%');
+    expect(html).not.toContain('Margin');
     expect(html).toContain('CPR CPR-1');
   });
 
@@ -82,10 +83,11 @@ describe('an empty period', () => {
 });
 
 describe('the payments summary', () => {
-  it('gives the payment, what PostEx kept, the goods and the profit', () => {
+  it('gives what PostEx paid and still owes, the fee and tax it kept, and the profit', () => {
     const html = render(<PaymentsSummary data={data} />);
-    for (const label of ['Payment received', 'PostEx kept', 'Product cost', 'Profit']) expect(html).toContain(label);
-    expect(html).toContain('Delivery Rs 400.00 + tax Rs 32.00');
+    for (const label of ['Received from PostEx', 'PostEx still owes', 'Delivery fee', 'Tax kept by PostEx', 'Profit (money left)']) expect(html).toContain(label);
+    expect(html).toContain('Rs 8,859.00');
+    expect(html).toContain('12 parcels delivered');
     expect(html).toContain('Rs 432.00');
   });
 });

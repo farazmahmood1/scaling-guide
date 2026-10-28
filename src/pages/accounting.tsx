@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save } from 'lucide-react';
+import { ArrowLeftRight, FileText, type LucideIcon, ReceiptText, Save } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 
@@ -17,6 +17,8 @@ import { useApi } from '@/hooks/use-api';
 import { usePeriods } from '@/hooks/use-periods';
 import { type DrillSpec, type InventoryCheck, type OpeningBalances, type StoreKey, apiPut } from '@/lib/api';
 import { formatPaisa, paisaToInput, parseRupees } from '@/lib/format';
+import { plainAccount } from '@/lib/ledger';
+import { cn } from '@/lib/utils';
 
 const selectClass = 'h-9 rounded-lg border bg-background px-2 text-sm';
 const ACCOUNT_NAMES: Record<string, string> = {
@@ -84,13 +86,25 @@ function OpeningBalancesCard() {
   };
 
   const update = (index: number, change: Partial<Draft>) => setDrafts(rows.map((r, i) => (i === index ? { ...r, ...change } : r)));
+  // What the rows add up to, by kind: had (assets), owed (liabilities), the owner's (equity).
+  const totalOf = (digit: string) => rows.reduce((n, r, i) => (r.code.startsWith(digit) && parsed[i] ? n + BigInt(parsed[i]!) : n), 0n);
+  const had = totalOf('1');
+  const owed = totalOf('2');
+  const owner = totalOf('3');
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Opening balances</CardTitle>
+        <CardTitle className="flex flex-wrap items-center gap-2">
+          Opening balances
+          <Badge variant={data?.opening ? 'secondary' : 'outline'}>{data?.opening ? `Entered, as at ${data.opening.date}` : 'Not entered yet'}</Badge>
+        </CardTitle>
         <CardDescription>
-          From the client's last accounts. Any difference is posted to Opening balances (3100). {data?.opening ? `Posted as at ${data.opening.date}.` : 'Not entered yet.'}
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            <li>Filled in once, when you start using the app.</li>
+            <li>What the business had and owed on the day before. Your accountant has these figures.</li>
+            <li>Not filled in? Profit is still right; only the balance sheet starts from zero.</li>
+          </ul>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -109,10 +123,22 @@ function OpeningBalancesCard() {
         {rows.map((row, index) => (
           <div key={index} className="flex flex-wrap items-center gap-2">
             <select className={selectClass} value={row.code} onChange={(e) => update(index, { code: e.target.value })} aria-label="Account">
-              {(data?.accounts ?? []).map((a) => (
-                <option key={a.code} value={a.code}>
-                  {a.code} {ACCOUNT_NAMES[a.code] ?? a.key}
-                </option>
+              {(
+                [
+                  ['1', 'What the business had'],
+                  ['2', 'What the business owed'],
+                  ['3', "Owner's money"],
+                ] as const
+              ).map(([digit, label]) => (
+                <optgroup key={digit} label={label}>
+                  {(data?.accounts ?? [])
+                    .filter((a) => a.code.startsWith(digit))
+                    .map((a) => (
+                      <option key={a.code} value={a.code}>
+                        {plainAccount(a.code, ACCOUNT_NAMES[a.code] ?? a.key)} ({a.code})
+                      </option>
+                    ))}
+                </optgroup>
               ))}
             </select>
             <select className={selectClass} value={row.store} onChange={(e) => update(index, { store: e.target.value as '' | StoreKey })} aria-label="Brand">
@@ -130,6 +156,26 @@ function OpeningBalancesCard() {
             />
           </div>
         ))}
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 rounded-lg bg-muted/40 p-3 text-sm sm:grid-cols-4">
+          <div>
+            <dt className="text-xs text-muted-foreground">Had</dt>
+            <dd className="tabular-nums">{formatPaisa(had.toString())}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Owed</dt>
+            <dd className="tabular-nums">{formatPaisa(owed.toString())}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Owner's money</dt>
+            <dd className="tabular-nums">{formatPaisa(owner.toString())}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground" title="Had, less owed, less the owner's money: posted to Opening balances (3100)">
+              Difference
+            </dt>
+            <dd className="font-medium tabular-nums">{formatPaisa((had - owed - owner).toString())}</dd>
+          </div>
+        </dl>
         <div className="flex gap-2">
           <Button size="sm" variant="ghost" onClick={() => setDrafts([...rows, { code: '1000', store: '', amount: '' }])}>
             Add line
@@ -155,8 +201,8 @@ function InventoryCheckCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Inventory check</CardTitle>
-        <CardDescription>The Inventory account against the stock count × cost. Pick the opening date to check the opening figures.</CardDescription>
+        <CardTitle>Stock check</CardTitle>
+        <CardDescription>Does the stock value in the books match the counted units × their cost? Pick a date to check that day.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <Input type="date" className="w-44" value={asAt} onChange={(e) => setAsAt(e.target.value)} aria-label="As at" />
@@ -209,22 +255,22 @@ function InventoryCheckCard() {
 }
 
 
-const DOCUMENTS = [
-  { key: 'invoices', label: 'Invoices' },
-  { key: 'bills', label: 'Bills' },
-  { key: 'payments', label: 'Payments' },
-] as const;
+const DOCUMENTS: ReadonlyArray<{ key: 'invoices' | 'bills' | 'payments'; label: string; hint: string; icon: LucideIcon }> = [
+  { key: 'invoices', label: 'Invoices', hint: 'What partner shops sold for us', icon: FileText },
+  { key: 'bills', label: 'Bills', hint: 'What suppliers charged us', icon: ReceiptText },
+  { key: 'payments', label: 'Payments', hint: 'Money in from PostEx, out to suppliers', icon: ArrowLeftRight },
+];
 type DocumentKey = (typeof DOCUMENTS)[number]['key'];
 
 /** Invoices, bills and payments, each opening the journal lines it posted. */
 function Documents() {
-  const [kind, setKind] = useState<DocumentKey>('invoices');
+  const [kind, setKind] = useState<DocumentKey>('payments');
   const [open, setOpen] = useState<{ drill: DrillSpec; title: string }>();
   const { closed } = usePeriods();
   const onOpen = (drill: DrillSpec, title: string) => setOpen({ drill, title });
   return (
     <div className="space-y-4">
-      <div role="group" aria-label="Document" className="flex gap-1 text-sm">
+      <div role="group" aria-label="Document" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {DOCUMENTS.map((d) => (
           <button
             key={d.key}
@@ -234,9 +280,15 @@ function Documents() {
               setKind(d.key);
               setOpen(undefined);
             }}
-            className="rounded-md px-3 py-1.5 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-pressed:bg-secondary aria-pressed:font-medium"
+            className="flex items-center gap-3 rounded-xl border p-3 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-pressed:border-primary aria-pressed:bg-primary/5 aria-pressed:ring-1 aria-pressed:ring-primary"
           >
-            {d.label}
+            <span className={cn('flex size-9 shrink-0 items-center justify-center rounded-full bg-muted', kind === d.key && 'bg-primary text-primary-foreground')}>
+              <d.icon className="size-4" aria-hidden />
+            </span>
+            <span>
+              <span className="block font-semibold">{d.label}</span>
+              <span className="block text-xs text-muted-foreground">{d.hint}</span>
+            </span>
           </button>
         ))}
       </div>
@@ -276,8 +328,7 @@ export function AccountingPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Accounting</h1>
         <p className="text-sm text-muted-foreground">
-          Double-entry books, posted on their own from deliveries, PostEx charges and payouts, and by people for purchases and expenses. A sale counts only once its parcel
-          is delivered. Profit and loss, the trial balance and the ledgers are in{' '}
+          Your books. The app writes most entries on its own, from PostEx and Shopify. Profit and loss and the ledgers are in{' '}
           <Link className="underline underline-offset-2" to="/reports">
             Reports
           </Link>
@@ -285,7 +336,7 @@ export function AccountingPage() {
         </p>
       </div>
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex-wrap">
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="journal">Journal</TabsTrigger>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
           <TabsTrigger value="documents">Invoices, bills and payments</TabsTrigger>
@@ -293,10 +344,7 @@ export function AccountingPage() {
           <TabsTrigger value="setup">Opening balances</TabsTrigger>
         </TabsList>
         <TabsContent value="journal" className="mt-3">
-          <TabIntro>
-            Every entry in the books, newest first. Most are posted by the system: a sale when PostEx delivers a parcel, PostEx's charges when it books or returns one, cash
-            when PostEx pays out. Open one to see its debits and credits.
-          </TabIntro>
+          <TabIntro>Every money movement, newest first. Press a row to see what it changed.</TabIntro>
           <Card>
             <CardContent className="pt-6">
               <JournalList />
@@ -304,18 +352,11 @@ export function AccountingPage() {
           </Card>
         </TabsContent>
         <TabsContent value="expenses" className="mt-3">
-          <TabIntro>
-            Ads, salaries, rent, packaging and other running costs. Record each as it is paid; the profit and loss subtracts them to give net profit.
-          </TabIntro>
+          <TabIntro>Ads, salaries, rent, packaging and other running costs. Add each one when you pay it; profit takes them off.</TabIntro>
           <ExpensesPanel />
         </TabsContent>
         <TabsContent value="documents" className="mt-3">
-          <TabIntro>
-            <span className="font-medium text-foreground">Invoices</span> are made when a retail partner's sales sheet is imported (Partners).{' '}
-            <span className="font-medium text-foreground">Bills</span> are the supplier's bills recorded under Purchase → Bill.{' '}
-            <span className="font-medium text-foreground">Payments</span> are money received from partners and paid to suppliers. Each one opens the entries it posted. They
-            stay empty until those steps are used.
-          </TabIntro>
+          <TabIntro>Each one has an Entries button that shows what it wrote in the books.</TabIntro>
           <Card>
             <CardContent className="pt-6">
               <Documents />
@@ -323,14 +364,10 @@ export function AccountingPage() {
           </Card>
         </TabsContent>
         <TabsContent value="close" className="mt-3">
-          <TabIntro>
-            Close a month once its figures are final, normally on the 5th of the next month. Nothing posts into a closed month afterwards: a late PostEx correction lands in
-            the next open month, so a closed month's report never changes.
-          </TabIntro>
           <Card>
             <CardHeader>
               <CardTitle>Month close</CardTitle>
-              <CardDescription>Months the books are final for are marked everywhere they appear.</CardDescription>
+              <CardDescription>Lock a month once its numbers are final, so its reports never change.</CardDescription>
             </CardHeader>
             <CardContent>
               <PeriodClose />
@@ -338,10 +375,6 @@ export function AccountingPage() {
           </Card>
         </TabsContent>
         <TabsContent value="setup" className="mt-3">
-          <TabIntro>
-            Entered once, from your accountant: what the business held and owed on the day before the platform's books start (bank, cash, money owed to and by you). Without
-            them, the balance sheet starts from zero; profit is not affected.
-          </TabIntro>
           <div className="grid gap-6 lg:grid-cols-2">
             <OpeningBalancesCard />
             <InventoryCheckCard />
