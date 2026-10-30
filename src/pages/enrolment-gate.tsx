@@ -15,8 +15,8 @@ export function EnrolmentGate() {
     <div className="flex min-h-screen items-center justify-center bg-brand-navy px-4 py-8">
       <div className="w-full max-w-lg">
         <div className="mb-6 flex items-center justify-center gap-2 text-white">
-          <span className="flex size-8 items-center justify-center rounded-full bg-brand-coral text-sm font-bold">c</span>
-          <span className="text-lg font-semibold tracking-tight">NUR Organics</span>
+          <span className="flex size-8 items-center justify-center rounded-full bg-brand-coral text-sm font-bold">M</span>
+          <span className="text-lg font-semibold tracking-tight">Monixys</span>
         </div>
         <Card>
           <CardHeader>

@@ -25,7 +25,7 @@ export const isSignInCode = (typed: string): boolean => {
 /** The recovery codes as a text file a person can keep, with what they are for and that each works once. */
 export const recoveryCodesFile = (codes: readonly string[], account: string): string =>
   [
-    'NUR Organics: recovery codes',
+    'Monixys: recovery codes',
     `Account: ${account}`,
     '',
     'Each code works once, in place of the code from your authenticator app.',

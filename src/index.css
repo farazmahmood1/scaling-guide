@@ -128,7 +128,7 @@
     @apply font-sans;
     }
 }
-/* --- NUR Organics brand (Codilated navy + coral) ------------------------- */
+/* --- Monixys brand (Codilated navy + coral) ------------------------- */
 :root {
     --primary: #0a192f;
     --primary-foreground: #ffffff;
@@ -288,4 +288,23 @@
     .dashboard-grid .react-grid-item {
         transition: none;
     }
+}
+
+/* --- Landing page (/welcome) ---------------------------------------------- */
+.landing .lp-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(228, 73, 70, 0.16), transparent 60%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+}
+.landing .lp-card:hover::before {
+    opacity: 1;
+}
+@keyframes lp-drop {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(200%); }
 }

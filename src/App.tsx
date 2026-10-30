@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { RouterProvider } from 'react-router';
 
@@ -31,7 +31,17 @@ function Routes() {
   return <RouterProvider router={router} />;
 }
 
+// The public landing page: no sign-in, and three.js/GSAP stay out of the app's own bundle.
+const LandingPage = lazy(() => import('@/pages/landing/landing').then(({ LandingPage }) => ({ default: LandingPage })));
+
 export default function App() {
+  if (window.location.pathname === '/welcome') {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-brand-navy" />}>
+        <LandingPage />
+      </Suspense>
+    );
+  }
   return (
     <AuthProvider>
       <Routes />

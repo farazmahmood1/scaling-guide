@@ -75,8 +75,8 @@ function BrandPicker() {
 function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <span className="flex size-7 items-center justify-center rounded-full bg-brand-coral text-sm font-bold text-white">c</span>
-      <span className="font-semibold tracking-tight text-white">NUR Organics</span>
+      <span className="flex size-7 items-center justify-center rounded-full bg-brand-coral text-sm font-bold text-white">M</span>
+      <span className="font-semibold tracking-tight text-white">Monixys</span>
     </div>
   );
 }
@@ -133,7 +133,7 @@ function Shell() {
   const loading = useNavigation().state === 'loading';
 
   useEffect(() => {
-    document.title = `${titleForPath(pathname)} · NUR Organics`;
+    document.title = `${titleForPath(pathname)} · Monixys`;
   }, [pathname]);
 
   return (

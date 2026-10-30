@@ -1,4 +1,4 @@
-# NUR Organics platform — frontend
+# Monixys — frontend
 
 React + TypeScript dashboard, built with Vite, Tailwind CSS v4 and shadcn/ui.
 Shows orders, returns, stock and profit across NUR by Juggun and Juggun's Organics.

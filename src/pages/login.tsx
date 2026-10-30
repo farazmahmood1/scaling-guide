@@ -47,8 +47,8 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-brand-navy px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center justify-center gap-2 text-white">
-          <span className="flex size-8 items-center justify-center rounded-full bg-brand-coral text-sm font-bold">c</span>
-          <span className="text-lg font-semibold tracking-tight">NUR Organics</span>
+          <span className="flex size-8 items-center justify-center rounded-full bg-brand-coral text-sm font-bold">M</span>
+          <span className="text-lg font-semibold tracking-tight">Monixys</span>
         </div>
 
         <Card>
@@ -116,7 +116,9 @@ export function LoginPage() {
           </CardContent>
         </Card>
 
-        <p className="mt-6 text-center text-xs text-white/40">Built by Codilated</p>
+        <p className="mt-6 text-center text-xs text-white/40">
+          <a href="/welcome" className="underline-offset-4 hover:text-white/70 hover:underline">About Monixys</a> · Built by Codilated
+        </p>
       </div>
     </div>
   );
