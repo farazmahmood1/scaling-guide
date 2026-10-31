@@ -16,8 +16,8 @@ export const announceShopify = (head: string, sync: (ShopifySyncState & { error?
 /**
  * Warehouse check-in for the screens that have it. The outcome shows at once; a refusal puts the
  * row back and says why. `onSaved` runs once the server agreed, so the screen can reload what
- * depends on it (the list, the alert). A check-in never cancels the Shopify order: that is
- * `cancelInShopify`, its own action, asked for separately.
+ * depends on it (the list, the alert). The server settles the order in Shopify as part of the
+ * check-in (cancel or return); the buttons ask before sending it.
  */
 export function useCheckIn(onSaved: () => void) {
   const latest = useRef<Pending>(emptyPending());
@@ -73,7 +73,7 @@ export function useCheckIn(onSaved: () => void) {
     [onSaved],
   );
 
-  /** Cancels the parcel's order in Shopify, restocking it only if goods came back in good condition. Asked for, never automatic. */
+  /** Cancels the parcel's order in Shopify, restocking it only if goods came back in good condition: the confirmed button for a return left waiting on its open order. */
   const cancelInShopify = useCallback(
     async (shipmentId: string, trackingNumber: string) => {
       setBusyShopify(shipmentId);

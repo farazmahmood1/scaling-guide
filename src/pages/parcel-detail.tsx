@@ -308,7 +308,7 @@ export function ParcelDetailPage() {
                   </>
                 ) : can('returns.checkin') ? (
                   <div className="flex justify-start">
-                    <CheckInControls size="default" shipmentId={parcel.id} trackingNumber={parcel.trackingNumber} busy={busy} onCheckIn={(outcome, lines) => checkIn(parcel.id, parcel.trackingNumber, outcome, lines)} />
+                    <CheckInControls size="default" shipmentId={parcel.id} trackingNumber={parcel.trackingNumber} orderNumber={parcel.order?.number ?? null} busy={busy} onCheckIn={(outcome, lines) => checkIn(parcel.id, parcel.trackingNumber, outcome, lines)} />
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">Not checked in yet.</p>

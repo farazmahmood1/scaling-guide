@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { returnStageText, splitLines, splitProblem } from '@/lib/returns';
+import { returnStageText, shopifyEffect, splitLines, splitProblem } from '@/lib/returns';
 
 const units = [
   { variantId: '1', title: 'Serum', sku: null, qty: 2 },
@@ -35,5 +35,15 @@ describe('returnStageText', () => {
   it('names the two stages of a return', () => {
     expect(returnStageText('returning')).toBe('On the way back');
     expect(returnStageText('returned')).toBe('Back with us');
+  });
+});
+
+describe('shopifyEffect', () => {
+  it('names the order and says what is restocked, that nothing is refunded, and that a cancel is final', () => {
+    expect(shopifyEffect('#64786', 'restocked')).toBe(
+      'In Shopify, #64786 is cancelled with its items restocked if it is still open there, or gets a return recorded the same way if it was fulfilled. No refund, and the customer is not emailed. A cancel cannot be undone in Shopify.',
+    );
+    expect(shopifyEffect('#1', 'damaged')).toContain('its items not restocked');
+    expect(shopifyEffect('#1', 'mixed')).toContain('the good items restocked and the damaged ones not');
   });
 });

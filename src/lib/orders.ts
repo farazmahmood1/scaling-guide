@@ -43,6 +43,12 @@ export const ORDER_FLAG_LABELS: Record<(typeof ORDER_FLAGS)[number], string> = {
 /** Shopify's payment status in words (`partially_paid` → `Partially paid`); a dash when it gave none. */
 export const paymentText = (status: string | null): string => (status ? status.charAt(0).toUpperCase() + status.slice(1).replaceAll('_', ' ') : '—');
 
+const PAYMENT_METHOD_LABELS: Record<NonNullable<OrderListRow['paymentMethod']>, string> = { cod: 'COD', card: 'Card', card_and_cod: 'Card + COD', other: 'Other' };
+
+/** How the customer paid: a gateway that is neither card nor COD by its own name, unknown as a dash. */
+export const paymentMethodText = (row: Pick<OrderListRow, 'paymentMethod' | 'paymentGateways'>): string =>
+  row.paymentMethod === null ? '—' : row.paymentMethod === 'other' ? row.paymentGateways.map(paymentText).join(' + ') : PAYMENT_METHOD_LABELS[row.paymentMethod];
+
 /** The orders API address for a list view: the same names the URL uses, so the two never drift. */
 export const ordersPath = (q: ListQuery, page: { page: number; pageSize: number } = q): string => {
   const params = new URLSearchParams();

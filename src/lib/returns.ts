@@ -1,4 +1,5 @@
 import type { CheckInLine, ParcelUnit } from '@/lib/api';
+import type { Outcome } from '@/lib/check-in';
 
 /**
  * The split check-in's arithmetic, apart from how it draws: per product, the units marked fine go
@@ -23,3 +24,9 @@ export const splitProblem = (units: readonly ParcelUnit[], lines: readonly Check
 
 /** Where a returned parcel is, in words: on its way back, or handed back to us. */
 export const returnStageText = (stage: string | null): string => (stage === 'returning' ? 'On the way back' : stage === 'returned' ? 'Back with us' : (stage ?? '—'));
+
+/** What a check-in does to the order in Shopify, in words, for the confirmation. */
+export const shopifyEffect = (orderNumber: string, outcome: Outcome): string => {
+  const items = outcome === 'restocked' ? 'its items restocked' : outcome === 'damaged' ? 'its items not restocked' : 'the good items restocked and the damaged ones not';
+  return `In Shopify, ${orderNumber} is cancelled with ${items} if it is still open there, or gets a return recorded the same way if it was fulfilled. No refund, and the customer is not emailed. A cancel cannot be undone in Shopify.`;
+};

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { type ReactElement, cloneElement, useMemo, useState } from 'react';
 import { Ban, PackageCheck, PackageX, RotateCw, Split } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -8,12 +8,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useApi } from '@/hooks/use-api';
 import type { CheckInLine, ParcelUnit, ShopifySyncState } from '@/lib/api';
 import type { Outcome } from '@/lib/check-in';
-import { splitLines, splitProblem } from '@/lib/returns';
+import { shopifyEffect, splitLines, splitProblem } from '@/lib/returns';
 
 /**
  * The returns actions both the register and a parcel's page offer: checking a parcel in (all
- * restocked, all damaged, or split product by product), and where it stands in Shopify, with a
- * retry and the separate, confirmed cancel of the Shopify order.
+ * restocked, all damaged, or split product by product), which also settles the order in Shopify,
+ * and where it stands there, with a retry and the cancel kept as its own button.
  */
 
 // A button inside a clickable row: neither the click nor Enter/Space may also open the row.
@@ -22,12 +22,15 @@ const own = { onClick: (e: { stopPropagation: () => void }) => e.stopPropagation
 export function CheckInControls({
   shipmentId,
   trackingNumber,
+  orderNumber,
   busy,
   onCheckIn,
   size = 'sm',
 }: {
   shipmentId: string;
   trackingNumber: string;
+  /** The Shopify order the check-in settles; without one, nothing changes in Shopify and nothing is asked. */
+  orderNumber: string | null;
   busy: boolean;
   onCheckIn: (outcome: Outcome, lines?: CheckInLine[]) => Promise<boolean> | void;
   size?: 'sm' | 'default';
@@ -35,14 +38,18 @@ export function CheckInControls({
   const [splitOpen, setSplitOpen] = useState(false);
   return (
     <span className="flex flex-wrap justify-end gap-2" {...own}>
-      <Button size={size} variant="outline" disabled={busy} onClick={() => void onCheckIn('restocked')} aria-label={`Restock ${trackingNumber}`}>
-        <PackageCheck className="size-4" />
-        Restock
-      </Button>
-      <Button size={size} variant="destructive" disabled={busy} onClick={() => void onCheckIn('damaged')} aria-label={`Mark ${trackingNumber} damaged`}>
-        <PackageX className="size-4" />
-        Damaged
-      </Button>
+      <ConfirmedCheckIn outcome="restocked" orderNumber={orderNumber} busy={busy} onConfirm={() => void onCheckIn('restocked')}>
+        <Button size={size} variant="outline" disabled={busy} aria-label={`Restock ${trackingNumber}`}>
+          <PackageCheck className="size-4" />
+          Restock
+        </Button>
+      </ConfirmedCheckIn>
+      <ConfirmedCheckIn outcome="damaged" orderNumber={orderNumber} busy={busy} onConfirm={() => void onCheckIn('damaged')}>
+        <Button size={size} variant="destructive" disabled={busy} aria-label={`Mark ${trackingNumber} damaged`}>
+          <PackageX className="size-4" />
+          Damaged
+        </Button>
+      </ConfirmedCheckIn>
       <Popover open={splitOpen} onOpenChange={setSplitOpen}>
         <PopoverTrigger asChild>
           <Button size={size} variant="ghost" disabled={busy} aria-label={`Split ${trackingNumber}: part restocked, part damaged`}>
@@ -54,6 +61,7 @@ export function CheckInControls({
           {splitOpen && (
             <SplitForm
               shipmentId={shipmentId}
+              orderNumber={orderNumber}
               busy={busy}
               onSubmit={async (lines) => {
                 const saved = await onCheckIn('mixed', lines);
@@ -67,8 +75,43 @@ export function CheckInControls({
   );
 }
 
+/**
+ * Asks once before a check-in that changes a Shopify order, naming the order and what happens to
+ * it there. A parcel with no Shopify order is checked in at once.
+ */
+function ConfirmedCheckIn({ outcome, orderNumber, busy, onConfirm, children }: { outcome: 'restocked' | 'damaged'; orderNumber: string | null; busy: boolean; onConfirm: () => void; children: ReactElement<{ onClick?: () => void }> }) {
+  const [open, setOpen] = useState(false);
+  if (!orderNumber) return cloneElement(children, { onClick: onConfirm });
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent align="end" className="w-80 space-y-2 p-3">
+        <p className="font-medium">{outcome === 'restocked' ? 'Restock this parcel?' : 'Check this parcel in as damaged?'}</p>
+        <p className="text-sm text-muted-foreground">{outcome === 'restocked' ? 'Its items go back on the shelf here.' : 'Its items go to Damaged here and their cost is written off.'}</p>
+        <p className="text-sm text-muted-foreground">{shopifyEffect(orderNumber, outcome)}</p>
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+            Not yet
+          </Button>
+          <Button
+            size="sm"
+            variant={outcome === 'damaged' ? 'destructive' : 'default'}
+            disabled={busy}
+            onClick={() => {
+              setOpen(false);
+              onConfirm();
+            }}
+          >
+            {outcome === 'restocked' ? 'Restock and update Shopify' : 'Mark damaged and update Shopify'}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** Per product the parcel carried: how many go back on the shelf; the rest are damaged. */
-function SplitForm({ shipmentId, busy, onSubmit }: { shipmentId: string; busy: boolean; onSubmit: (lines: CheckInLine[]) => Promise<void> }) {
+function SplitForm({ shipmentId, orderNumber, busy, onSubmit }: { shipmentId: string; orderNumber: string | null; busy: boolean; onSubmit: (lines: CheckInLine[]) => Promise<void> }) {
   const { data, error } = useApi<{ units: ParcelUnit[] }>(`/api/v1/stock/returns/${shipmentId}/units`);
   const units = useMemo(() => data?.units ?? [], [data]);
   const [good, setGood] = useState<Record<string, number>>({});
@@ -113,8 +156,9 @@ function SplitForm({ shipmentId, busy, onSubmit }: { shipmentId: string; busy: b
         })}
       </ul>
       {problem && <p className="text-xs text-muted-foreground">{problem}</p>}
+      {orderNumber && <p className="text-xs text-muted-foreground">{shopifyEffect(orderNumber, 'mixed')}</p>}
       <Button type="submit" size="sm" className="w-full" disabled={busy || problem !== null}>
-        Check in: shelve the good ones, write off the rest
+        Check in: shelve the good ones, write off the rest{orderNumber ? ', update Shopify' : ''}
       </Button>
     </form>
   );
@@ -128,9 +172,10 @@ const LOOK: Record<ShopifySyncState['outcome'], { label: string; variant: 'secon
 };
 
 /**
- * Where a checked-in parcel stands in Shopify, with what can be done about it: Retry when Shopify
- * refused, and, when the order is still open there with the returned units committed to it,
- * Cancel in Shopify, which asks once more before doing anything.
+ * Where a checked-in parcel stands in Shopify, with what can be done about it: Retry, which does
+ * whatever is left (cancel, return, restock) when Shopify refused or could not be reached; and,
+ * when the order is still open there with the returned units committed to it, Cancel in Shopify,
+ * which asks once more before doing anything.
  */
 export function ShopifySyncCell({
   sync,
@@ -176,7 +221,8 @@ export function ShopifySyncCell({
     <span className="flex flex-col items-start gap-1" {...own}>
       <span className="flex flex-wrap items-center gap-2" title={sync.message}>
         <Badge variant={look.variant}>{look.label}</Badge>
-        {canAct && (sync.outcome === 'failed' || sync.outcome === 'pending') && (
+        {/* An open order waiting to be cancelled is settled by the confirmed Cancel below, not by a retry that would cancel unasked. */}
+        {canAct && (sync.outcome === 'failed' || (sync.outcome === 'pending' && !sync.cancellable)) && (
           <Button size="sm" variant="ghost" className="h-7 px-2" disabled={busy} onClick={onRetry} aria-label={`Check Shopify again for ${trackingNumber}`}>
             <RotateCw className={busy ? 'size-3.5 animate-spin' : 'size-3.5'} />
             {sync.outcome === 'failed' ? 'Retry' : 'Check again'}

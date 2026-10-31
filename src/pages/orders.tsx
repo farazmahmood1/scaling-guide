@@ -14,11 +14,11 @@ import type { OrderListRow, StoreKey } from '@/lib/api';
 import { TagChip } from '@/components/tag-chip';
 import { formatKarachiTime, formatPaisa, paisaToInput } from '@/lib/format';
 import type { QuerySpec } from '@/lib/list-query';
-import { CHANNEL_LABELS, ORDER_CHANNELS, ORDER_FLAGS, ORDER_FLAG_LABELS, ORDER_STATES, ORDER_STATE_LABELS, orderStateText, orderStateTone, paymentText } from '@/lib/orders';
+import { CHANNEL_LABELS, ORDER_CHANNELS, ORDER_FLAGS, ORDER_FLAG_LABELS, ORDER_STATES, ORDER_STATE_LABELS, orderStateText, orderStateTone, paymentMethodText, paymentText } from '@/lib/orders';
 import { stageText, storeLabel } from '@/lib/parcels';
 import { stageTone } from '@/lib/postex';
 
-const COLUMN_KEYS = ['order', 'view', 'store', 'state', 'tags', 'customer', 'phone', 'city', 'total', 'items', 'placedAt', 'parcel', 'payment', 'flags'];
+const COLUMN_KEYS = ['order', 'view', 'store', 'state', 'tags', 'customer', 'phone', 'city', 'total', 'paidBy', 'items', 'placedAt', 'parcel', 'payment', 'flags'];
 
 const SPEC_BASE: Omit<QuerySpec, 'multi'> = {
   sortKeys: ['placedAt', 'total', 'items'],
@@ -89,6 +89,20 @@ const COLUMNS: Column<OrderListRow>[] = [
   { key: 'phone', header: 'Phone', cell: (r) => r.phone ?? '—', csv: (r) => r.phone ?? '' },
   { key: 'city', header: 'City', cell: (r) => r.city ?? '—', csv: (r) => r.city ?? '' },
   { key: 'total', header: 'Total', sortable: true, align: 'right', cell: (r) => formatPaisa(r.totalPaisa), csv: (r) => paisaToInput(r.totalPaisa) },
+  // A card order's parcel collects nothing: this says why, so it does not read as missing money.
+  {
+    key: 'paidBy',
+    header: 'Paid by',
+    cell: (r) =>
+      r.paymentMethod === null ? (
+        <span className="text-muted-foreground">—</span>
+      ) : (
+        <Badge variant={r.paymentMethod === 'cod' ? 'secondary' : 'outline'} title={r.paymentGateways.join(', ')}>
+          {paymentMethodText(r)}
+        </Badge>
+      ),
+    csv: (r) => (r.paymentMethod === null ? '' : paymentMethodText(r)),
+  },
   { key: 'items', header: 'Items', sortable: true, align: 'right', cell: (r) => r.items, csv: (r) => String(r.items) },
   { key: 'placedAt', header: 'Placed', sortable: true, cell: (r) => formatKarachiTime(r.placedAt), csv: (r) => r.placedAt },
   {

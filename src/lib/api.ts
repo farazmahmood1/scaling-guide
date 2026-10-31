@@ -1108,6 +1108,10 @@ export interface OrderListRow {
   totalPaisa: string;
   state: OrderState | null;
   financialStatus: string | null;
+  /** From Shopify's payment gateways; null when it named none or the order was not read since. */
+  paymentMethod: 'cod' | 'card' | 'card_and_cod' | 'other' | null;
+  /** Shopify's gateway names as it spells them. */
+  paymentGateways: string[];
   channel: 'online' | 'consignment' | 'pr';
   items: number;
   discountCodes: string[];

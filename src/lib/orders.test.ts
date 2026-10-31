@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { defaultQuery } from '@/lib/list-query';
-import { ORDER_STATES, ORDER_STATE_LABELS, orderStateText, orderStateTone, ordersPath, paymentText } from '@/lib/orders';
+import { ORDER_STATES, ORDER_STATE_LABELS, orderStateText, orderStateTone, ordersPath, paymentMethodText, paymentText } from '@/lib/orders';
 
 describe('order states in words', () => {
   it('labels every state, and a state not worked out yet is a dash', () => {
@@ -20,6 +20,14 @@ describe('order states in words', () => {
   it('writes Shopify payment statuses as words', () => {
     expect(paymentText('partially_paid')).toBe('Partially paid');
     expect(paymentText(null)).toBe('—');
+  });
+
+  it('says how the customer paid, naming a gateway that is neither card nor COD', () => {
+    expect(paymentMethodText({ paymentMethod: 'cod', paymentGateways: ['Cash on Delivery (COD)'] })).toBe('COD');
+    expect(paymentMethodText({ paymentMethod: 'card', paymentGateways: ['shopify_payments'] })).toBe('Card');
+    expect(paymentMethodText({ paymentMethod: 'card_and_cod', paymentGateways: ['shopify_payments', 'Cash on Delivery (COD)'] })).toBe('Card + COD');
+    expect(paymentMethodText({ paymentMethod: 'other', paymentGateways: ['Bank Deposit'] })).toBe('Bank Deposit');
+    expect(paymentMethodText({ paymentMethod: null, paymentGateways: [] })).toBe('—');
   });
 });
 

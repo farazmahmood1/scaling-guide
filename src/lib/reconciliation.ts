@@ -111,6 +111,14 @@ PROFILES['cost_missing'] = simple(
   'Cost entered',
   'Not needed',
 );
+PROFILES['shopify_stock_push_failed'] = simple(
+  'shopify_stock_push_failed',
+  'Stock not updated in Shopify',
+  "A stock change made here (an adjustment, a count, goods received, a consignment or PR send) was refused by Shopify, so Shopify's stock is off by that much.",
+  'It is tried again by itself, at most hourly, and closes when Shopify accepts it. If Shopify keeps refusing, correct the quantity in Shopify by hand, then Resolve.',
+  'Corrected in Shopify',
+  'Not needed',
+);
 PROFILES['stock_unmapped_line'] = simple(
   'stock_unmapped_line',
   'Order lines with no product',

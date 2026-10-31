@@ -74,6 +74,10 @@ export const describeItem = (item: Pick<ReviewItem, 'kind' | 'detail'>): string 
     }
     case 'postex_unknown_status':
       return `Code ${text(d['code'])} "${text(d['message'])}" is not a code we know yet`.replace(' ""', '');
+    case 'shopify_stock_push_failed': {
+      const delta = Number(d['delta']);
+      return `${text(d['product']) || 'A product'}: ${delta > 0 ? '+' : ''}${text(d['delta'])} not carried to Shopify's stock (${text(d['error'])})`;
+    }
     case 'shopify_order_missing':
       return `${text(d['orderNumber']) || 'An order'} is kept here for its parcel and money, but Shopify no longer has it (deleted there)`;
     default:

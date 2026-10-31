@@ -84,10 +84,13 @@ function HowItWorks() {
                 <span className="text-foreground">Here:</span> the units move from "Coming back" to the shelf (Inventory, Warehouse) and can be sold again.
               </li>
               <li>
-                <span className="text-foreground">In Shopify:</span> the units are added back to available only where Shopify counts them as gone (the order was fulfilled, or cancelled without restocking). If Shopify already restocked them, nothing is added, so stock is never counted twice. <strong>The order is never cancelled.</strong>
+                <span className="text-foreground">In Shopify, order still open</span> (a refused COD parcel): <strong>the order is cancelled</strong> with its items restocked. No refund, no email to the customer.
               </li>
               <li>
-                <span className="text-foreground">Order still open in Shopify:</span> Shopify still holds the units for it, so nothing is added and the parcel waits under Needs Shopify until the order is cancelled (see the last box).
+                <span className="text-foreground">In Shopify, order fulfilled:</span> a return is recorded on the order with the items restocked, and closed. A return your team already opened there is used, not doubled.
+              </li>
+              <li>
+                <span className="text-foreground">Already done in Shopify:</span> nothing is cancelled, returned or restocked twice. You are asked once before anything changes.
               </li>
               <li>
                 <span className="text-foreground">Money:</span> no sale was ever counted for a refused parcel, so revenue does not change. Only PostEx's return charge stays as a cost.
@@ -103,7 +106,7 @@ function HowItWorks() {
                 <span className="text-foreground">Here:</span> the units move to "Damaged", never back to the shelf, and the parcel is listed under the Damaged tab with what was inside, who it was sent to and when.
               </li>
               <li>
-                <span className="text-foreground">In Shopify:</span> nothing is added back. A fulfilled order needs nothing: the units already left Shopify's stock. An order still open there waits under Needs Shopify.
+                <span className="text-foreground">In Shopify:</span> an open order is cancelled without restocking; a fulfilled one gets a return recorded with the items marked not restocked. Nothing goes back on sale there.
               </li>
               <li>
                 <span className="text-foreground">Money:</span> the products' cost is written off as an expense (once their cost price is entered).
@@ -115,18 +118,18 @@ function HowItWorks() {
               <Split className="size-4" /> Split: some fine, some damaged
             </p>
             <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-              <li>Say, per product, how many came back fine. Those go back on the shelf and to Shopify as above; the rest are damaged and written off.</li>
+              <li>Say, per product, how many came back fine. Those go back on the shelf and are restocked in Shopify as above; the rest are damaged, written off, and not restocked there.</li>
               <li>Only what came back is counted: the numbers always add up to what the parcel carried.</li>
             </ul>
           </div>
           <div className="rounded-lg border border-l-4 p-3">
             <p className="mb-1 flex items-center gap-1.5 font-medium">
-              <Ban className="size-4" /> Cancel in Shopify: its own step
+              <Ban className="size-4" /> When Shopify is not updated
             </p>
             <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-              <li>Offered only after check-in, for an order still open in Shopify, and asks you to confirm.</li>
-              <li>Cancels with restock if the goods came back fine, without restock if damaged. No refund, no email to the customer.</li>
-              <li>Cancelling the order in Shopify yourself works too: the platform notices within a few minutes and adds nothing twice.</li>
+              <li>If Shopify refuses or cannot be reached, the parcel is listed under Needs Shopify. Press Retry: it does only what is left.</li>
+              <li>An order with another parcel still out with PostEx (a re-sent order) is never cancelled.</li>
+              <li>A return checked in before this worked can still be settled with Cancel in Shopify, which asks you to confirm.</li>
             </ul>
           </div>
         </CardContent>
@@ -200,7 +203,7 @@ export function ReturnsPage() {
           }
           // A role that may see returns but not check them in is shown the state, not the buttons.
           if (!canCheckIn) return <span className="text-sm text-muted-foreground">Waiting</span>;
-          return <CheckInControls shipmentId={r.id} trackingNumber={r.trackingNumber} busy={pending.inFlight.includes(r.id)} onCheckIn={(outcome, lines) => checkIn(r.id, r.trackingNumber, outcome, lines)} />;
+          return <CheckInControls shipmentId={r.id} trackingNumber={r.trackingNumber} orderNumber={r.orderId ? r.orderNumber : null} busy={pending.inFlight.includes(r.id)} onCheckIn={(outcome, lines) => checkIn(r.id, r.trackingNumber, outcome, lines)} />;
         },
         csv: (r) => r.checkedIn ?? 'waiting',
       },
@@ -231,7 +234,7 @@ export function ReturnsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Returns</h1>
         <p className="text-sm text-muted-foreground">
-          Parcels PostEx is bringing back or has brought back. Check each one in when it is in your hands: its stock moves here at once, and Shopify's stock is brought in line. Restocking never cancels the Shopify order.
+          Parcels PostEx is bringing back or has brought back. Check each one in when it is in your hands: its stock moves here at once, and the order is settled in Shopify (cancelled if still open, or a return recorded if fulfilled).
           {awaiting.data && awaiting.data.comingBack > 0 ? ` ${awaiting.data.comingBack} more ${awaiting.data.comingBack === 1 ? 'is' : 'are'} on the way back.` : ''}
         </p>
       </div>
@@ -256,7 +259,7 @@ export function ReturnsPage() {
           </div>
           {view === 'shopify' && (
             <p className="text-sm text-muted-foreground">
-              Checked in, but Shopify's stock is not settled: Shopify refused (Retry), or the order is still open there and keeps the units committed to it (Cancel in Shopify when you are ready, or cancel it in Shopify with Restock ticked). These are re-checked automatically every few minutes.
+              Checked in, but Shopify is not settled: Shopify refused or could not be reached (Retry), or the order is still open there (Cancel in Shopify, or cancel it in Shopify with Restock ticked). These are re-checked automatically every few minutes, but only a button changes the order.
             </p>
           )}
           {view !== 'damaged' && <FilterBar query={query} onChange={setQuery} dateLabel="Booked" searchPlaceholder="Scan or type a tracking number" />}
